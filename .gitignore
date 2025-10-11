@@ -1,25 +1,8 @@
-# Fichiers/dossiers de configuration locale
-.vscode/
-.idea/
-*.code-workspace
-
-# Fichiers temporaires
-*.log
-*.tmp
-*.swp
-.DS_Store
-
-# Environnements virtuels Python (si tu en utilises)
-venv/
-.env/
-
-# Fichiers compilés (ex: Python, C, etc.)
-__pycache__/
+# Fichiers/dossiers de configuration locale et venv python
+python_env/venv/
 *.pyc
-*.pyo
-*.class
+__pycache__/
+.vscode/
 
-# Dossiers de build
+# Dossier de build
 build/
-dist/
-node_modules/
