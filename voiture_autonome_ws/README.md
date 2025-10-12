@@ -1,92 +1,109 @@
-# Projet Voiture Autonome – Workspace de Développement
+# Workspace Voiture Autonome
 
-## 1. Présentation
+## 1. Introduction
 
-Ce projet constitue un workspace modulaire en langage C pour le développement d’un système de voiture autonome et de son contrôleur central.
-L’architecture est conçue pour être claire, maintenable et adaptée au développement embarqué.
-Chaque composant (voiture, contrôleur, outils, communs) est compilé séparément puis lié au sein d’un exécutable final.
+Ce workspace contient le code source pour le développement d’un système de voiture autonome et de son contrôleur central.  
+Il est organisé pour permettre un développement modulaire et indépendant des deux processus principaux :
 
-## 2. Structure du workspace
+- **Voiture** : processus représentant le véhicule autonome.  
+- **Contrôleur** : processus de supervision et de pilotage.  
 
-build/ contient les objets compilés et les exécutables :
-- voiture/ : objets et exécutable de la voiture
-- controleur/ : objets et exécutable du contrôleur
-- tools/ : objets des utilitaires
+Les paramètres du **système global** sont configurable via des codes communs au deux processus (types, variables et fonctions partagées entre les processus). Des **outils** externes peuvent également être gréffés au workspace.
 
-src/ contient le code source :
-- common/ : fichiers partagés (headers et utilitaires)
-- tools/ : modules outils
-- voiture/ : code du véhicule autonome
-- controleur/ : code du contrôleur
+Chaque processus est compilé indépendamment à partir de son code source et des sources communes. Le workspace facilite la compilation automatique et la gestion des dépendances entre modules.
 
-Le Makefile global est le point d’entrée principal. README.md contient la documentation.
+## 2. Structure générale
 
-## 3. Architecture logicielle
+Le workspace est organisé en trois types de modules :
 
-Le projet repose sur quatre ensembles principaux : tools, common, voiture et controleur.
-Chaque module a son Makefile interne, invoqué automatiquement par le Makefile global.
+1. **Tools** (`src/tools/*/`)  
+   - Contient des bibliothèques utilitaires réutilisables.  
+   - Chaque tool doit avoir son propre Makefile. (Voir celui de my_tool pour l'exemple)  
+   - Les tools doivent rester indépendants de la voiture et du contrôleur, ce sont des outils.
+   - Exemple : La structure de File `queue` contient un Makefile et la compilation produit un objet `.o` dans `build/tools/queue/`.
 
-## 4. Compilation
+2. **Common** (`src/common/`)  
+   - Contient des fonctions et des définitions partagées par tous les processus.
+   - `messages.h` défini les types de données des messages échanger entre les processus via le protocol TCP.
+   - `config.h` contient des constantes permettant de configurer le réseau, et de parametrer le système avant la compilation.
+   - Les fichiers `.c` et `.h` sont compilés en objets dans `build/common/`.
 
-- `make all` compile tous les modules.
-- `make voiture` compile uniquement la voiture. On peut désactiver certains modules via `DISABLE="Module1,Module2"`.
-- `make controleur` compile uniquement le contrôleur.
-- `make clean` supprime tous les fichiers générés.
+3. **Processus spécifiques** (`src/voiture/*/` et `src/controleur/*/`)  
+   - Chaque processus contient ses modules propres (par exemple `Localisation` pour la voiture ou `IHM` poour le controleur).  
+   - Chaque module doit avoir son propre Makefile pour être intégré à la compilation (Suivre l'exemple de `Localisation`).  
+   - Les fichiers `.c` et `.h` sont compilés en objets dans `build/<process>/`.
 
-Exécutables générés : `build/voiture/voiture` et `build/controleur/controleur`.
+**Remarque** : Les modules spécifiques peuvent inclure les modules communs et tools.
 
-## 5. Aide intégrée
+## 3. Système de compilation
 
-`make help` affiche la liste des cibles disponibles et leur description.
-Si une commande inconnue est saisie, le système redirige automatiquement vers `make help`.
+Le Makefile global gère automatiquement :
 
-## 6. Processus de compilation
+1. La compilation des **tools**.
+2. La compilation des fichiers **common**.
+3. La compilation des fichiers du processus cible (`voiture` ou `controleur`) et de ces tâches.  
 
-Pour la voiture : 
-1. Compilation des outils (tools)
-2. Compilation des fichiers communs (common)
-3. Compilation des modules spécifiques à la voiture
-4. Linkage de tous les fichiers objets pour créer l’exécutable
+Lorsqu’un développeur exécute `make voiture` ou `make controleur` :
 
-Le Makefile affiche les fichiers objets utilisés lors du linkage.
+- Le Makefile scanne **automatiquement** les dossiers de chaque module pour trouver les fichiers `.c` et `.h`.
+- Pour les tools, il scanne `src/tools/*/`.
+- Pour common, il scanne `src/common/`.
+- Pour un processus, il scanne `src/<process>/*/`.
+- Les fichiers `.c` sont compilés en objets `.o` dans `build/<destination>/`.
+- Le linkage combine tous les objets (processus + tools + common) pour générer l’exécutable.
 
-## 7. Détails techniques
+Chaque module a la responsabilité de son Makefile interne, les variables `INCLUDES` et `BUILD_DIR` sont fournies par le makefile du processus : il doit générer ses objets dans le dossier de build du module.
 
-- GCC avec options : -Wall -O2 -pthread -lm
-- Includes détectés automatiquement depuis `src/tools/`
-- Linkage après compilation de tous les objets nécessaires
-- Ordre de compilation géré pour éviter les erreurs
+**Exemple :**  
+Si un développeur ajoute un nouveau tool `my_tool`, il doit créer :
+`src/tools/my_tool/Makefile`
 
-## 8. Bonnes pratiques
+qui définit la compilation des sources vers `build/tools/my_tool/`.
 
-- Exécuter `make clean` avant un build complet si des fichiers source ont été supprimés.
-- Utiliser `DISABLE=` pour isoler un module et accélérer le développement.
-- Centraliser les déclarations partagées dans `src/common/`.
-- Minimiser les dépendances entre les modules voiture et controleur.
+## 4. Désactivation de modules
 
-## 9. Dépendances externes
+- Le Makefile global permet de compiler un processus en désactivant certains modules avec la variable `DISABLE`.
+- Exemple : 
+`make voiture DISABLE="Comportement,SuiviTrajectoire"`
 
-Outils standards :
-- GCC
-- Make
-- Bibliothèques POSIX : pthread, math (-lpthread, -lm)
+- Cela permet de tester rapidement une partie du processus sans compiler tous les modules.
 
-Aucune dépendance tierce nécessaire.
+## 5. Points importants pour les développeurs
 
-## 10. Auteur et maintenance
+- **Isolation des processus** : Voiture et Contrôleur n’ont aucune dépendance entre eux.  
+- **Indépendance des tools** : Un tool doit pouvoir être utilisé par plusieurs projets sans dépendance spécifique.  
+- **Responsabilité du module** : Chaque module doit fournir son propre Makefile ou suivre le format de compilation standard du workspace.  
+- **Scans automatiques** : Tous les fichiers `.c` et `.h` présents dans les dossiers modules sont pris en compte automatiquement à la compilation.  
+- **Compilation modulaire** : L’ordre de compilation est toujours : tools → common → modules du processus → linkage final.
 
-Développé et maintenu par Victor.
-Dernière mise à jour : octobre 2025
-Le workspace sert de base à des développements embarqués ou distribués.
+## 6. Compilation manuelle
 
-## 11. Évolutions prévues
+Les commandes principales :
 
-- Ajout d’un système de tests unitaires internes
-- Extension des modules de communication (TCP, série)
-- Intégration sur plateforme embarquée (Raspberry Pi, STM32)
-- Amélioration du logging et de la supervision temps réel
+- `make all` : compile tools, common, voiture et controleur.  
+- `make voiture` : compile seulement la voiture et ses dépendances (tools et common).  
+- `make controleur` : compile seulement le contrôleur et ses dépendances.  
+- `make clean` : supprime tous les fichiers générés.
 
-## 12. Résumé
+## 7. Linkage
 
-Workspace structuré pour un véhicule autonome en C, modulaire et extensible.
-Organisation claire, facilite maintenance, tests et intégration continue.
+- Les fichiers objets sont combinés automatiquement pour générer l’exécutable final.  
+- Les objets inclus sont :  
+  - Objets du processus (`build/voiture/` ou `build/controleur/`)  
+  - Objets des tools (`build/tools/`)  
+  - Objets communs (`build/common/`)  
+- Le linkage se fait avec `gcc -Wall -O2 -pthread -lm`.
+
+## 8. Dépendances
+
+- GCC compatible C99 ou supérieur.  
+- Make.  
+- Bibliothèques POSIX : `pthread` et `math`.
+
+## 9. Bonnes pratiques
+
+- Compiler tools et common avant les modules spécifiques.  
+- Chaque développeur doit créer et maintenir le Makefile de son module.  
+- Respecter l’isolation entre voiture et contrôleur.  
+- Éviter toute dépendance circulaire entre modules.
+
