@@ -10,7 +10,22 @@ BUILD_DIR := $(ROOT_DIR)/build
 # === Includes ===
 INCLUDES_TOOLS :=  $(addprefix -I,$(wildcard $(SRC_DIR)/tools/*/))
 INCLUDES_COMMON := -I$(SRC_DIR)/common
-CFLAGS := -Wall -O2 -pthread -lm
+CFLAGS := -Wall -O2 -pthread
+LDFLAGS := -pthread -lm
+
+# Log Mode (defaut release)
+MODE ?= release
+ifeq ($(MODE),debug)
+    CFLAGS += -DLOG_LEVEL=2
+else
+    CFLAGS += -DLOG_LEVEL=1
+endif
+LOG_TO_FILE ?= 1
+ifeq ($(LOG_TO_FILE),0)
+    CFLAGS += -DLOG_TO_FILE=0
+else 
+	CFLAGS += -DLOG_TO_FILE=1
+endif
 
 # Liste des modules à ignorer : ex. make voiture DISABLE=Localisation,Comportement
 DISABLE ?=
@@ -48,6 +63,7 @@ voiture:
 	@$(MAKE) --no-print-directory tools
 	@$(MAKE) --no-print-directory common
 	@$(MAKE) --no-print-directory -C $(VOITURE_DIR) \
+		CFLAGS="$(CFLAGS)" \
 		VOITURE_BUILD=$(VOITURE_BUILD) \
 		COMMON_INCLUDES="$(INCLUDES_COMMON)" \
 		TOOLS_INCLUDES="$(INCLUDES_TOOLS)" \
@@ -63,7 +79,7 @@ voiture-link:
 	echo -n "📄 Objets à linker : "; \
 	for f in $$OBJS; do echo -n "$$(basename $$f) "; done; \
 	echo; \
-	$(CC) $(CFLAGS) $$OBJS -o $(VOITURE_EXEC) && \
+	$(CC) $$OBJS -o $(VOITURE_EXEC) $(LDFLAGS) && \
 	echo "✔ Exécutable généré : $(VOITURE_EXEC)";
 
 
@@ -78,6 +94,7 @@ controleur:
 	@$(MAKE) --no-print-directory tools
 	@$(MAKE) --no-print-directory common
 	@$(MAKE) --no-print-directory -C $(CONTROLEUR_DIR) \
+		CFLAGS="$(CFLAGS)" \
 		CONTROLEUR_BUILD=$(CONTROLEUR_BUILD) \
 		COMMON_INCLUDES="$(INCLUDES_COMMON)" \
 		TOOLS_INCLUDES="$(INCLUDES_TOOLS)" \
@@ -93,7 +110,7 @@ controleur-link:
 	echo -n "📄 Objets à linker : "; \
 	for f in $$OBJS; do echo -n "$$(basename $$f) "; done; \
 	echo; \
-	$(CC) $(CFLAGS) $$OBJS -o $(CONTROLEUR_EXEC) && \
+	$(CC) $$OBJS -o $(CONTROLEUR_EXEC) $(LDFLAGS) && \
 	echo "✔ Exécutable généré : $(CONTROLEUR_EXEC)"
 
 

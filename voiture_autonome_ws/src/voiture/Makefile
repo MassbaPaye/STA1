@@ -2,14 +2,19 @@
 # Makefile pour src/voiture
 # ==============================
 
+# Variables fournies par le Makefile global
+#		CFLAGS="$(CFLAGS)" \
+		VOITURE_BUILD=$(VOITURE_BUILD) \
+		COMMON_INCLUDES="$(INCLUDES_COMMON)" \
+		TOOLS_INCLUDES="$(INCLUDES_TOOLS)" \
+		DISABLE="$(DISABLE)" \
+
+
 # Compilateur
 CC := gcc
-CFLAGS := -Wall -O2 -pthread
-
 
 # Variables pour le build
 VOITURE_DIR := $(CURDIR)
-VOITURE_BUILD ?= $(CURDIR)/build
 
 
 # Liste des sous-dossiers (= modules) avec chemin complet
@@ -31,7 +36,7 @@ modules:
 		if echo "$(DISABLE)" | grep -qw "$$(basename $$m)"; then \
 			echo "⏭️  Module $$(basename $$m) désactivé"; \
 		else \
-			$(MAKE) --no-print-directory -C $$m BUILD_DIR=$(VOITURE_BUILD)/$$(basename $$m) INCLUDES="$(INCLUDES)" || \
+			$(MAKE) --no-print-directory -C $$m CFLAGS="$(CFLAGS)" BUILD_DIR=$(VOITURE_BUILD)/$$(basename $$m) INCLUDES="$(INCLUDES)" || \
 				echo "⚠️  Erreur dans $$(basename $$m)"; \
 		fi; \
 	done

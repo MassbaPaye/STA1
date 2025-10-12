@@ -10,6 +10,47 @@
 
 extern const struct timespec TIMESPEC_UNDEFINED;
 
+/* ==== Prototypes des fonctions ==== */
+
+// Itineraire
+int set_itineraire(const Itineraire* t, int blocking);
+int get_itineraire(Itineraire* t, int blocking);
+struct timespec get_itineraire_last_update(void);
+
+// Consigne
+int set_consigne(const Consigne* t, int blocking);
+int get_consigne(Consigne* t, int blocking);
+struct timespec get_consigne_last_update(void);
+
+// Demande
+int set_demande(const Demande* t, int blocking);
+int get_demande(Demande* t, int blocking);
+struct timespec get_demande_last_update(void);
+
+// EtatVoiture
+int set_etat(const EtatVoiture* t, int blocking);
+int get_etat(EtatVoiture* t, int blocking);
+struct timespec get_etat_last_update(void);
+
+// PositionVoiture
+int set_position(const PositionVoiture* t, int blocking);
+int get_position(PositionVoiture* t, int blocking);
+struct timespec get_position_last_update(void);
+
+// Trajectoire
+int set_trajectoire(const Trajectoire* t, int blocking);
+int get_trajectoire(Trajectoire* t, int blocking);
+struct timespec get_trajectoire_last_update(void);
+
+// DonneesDetection
+int set_donnees_detection(const DonneesDetection* t, int blocking);
+int get_donnees_detection(DonneesDetection* t, int blocking);
+struct timespec get_donnees_detection_last_update(void);
+
+void init_voiture_globals(void);
+
+
+
 /* ==== Définition des variables globales ==== */
 typedef struct {
     pthread_mutex_t mutex;
@@ -66,43 +107,5 @@ typedef struct {
 extern GlobalsVoiture g;
 
 
-/* ==== Prototypes des fonctions ==== */
-
-// Itineraire
-int set_itineraire(const Itineraire* t, int blocking);
-int get_itineraire(Itineraire* t, int blocking);
-struct timespec get_itineraire_last_update(void);
-
-// Consigne
-int set_consigne(const Consigne* t, int blocking);
-int get_consigne(Consigne* t, int blocking);
-struct timespec get_consigne_last_update(void);
-
-// Demande
-int set_demande(const Demande* t, int blocking);
-int get_demande(Demande* t, int blocking);
-struct timespec get_demande_last_update(void);
-
-// EtatVoiture
-int set_etat(const EtatVoiture* t, int blocking);
-int get_etat(EtatVoiture* t, int blocking);
-struct timespec get_etat_last_update(void);
-
-// PositionVoiture
-int set_position(const PositionVoiture* t, int blocking);
-int get_position(PositionVoiture* t, int blocking);
-struct timespec get_position_last_update(void);
-
-// Trajectoire
-int set_trajectoire(const Trajectoire* t, int blocking);
-int get_trajectoire(Trajectoire* t, int blocking);
-struct timespec get_trajectoire_last_update(void);
-
-// DonneesDetection
-int set_donnees_detection(const DonneesDetection* t, int blocking);
-int get_donnees_detection(DonneesDetection* t, int blocking);
-struct timespec get_donnees_detection_last_update(void);
-
-void init_voiture_globals(void);
 
 #endif

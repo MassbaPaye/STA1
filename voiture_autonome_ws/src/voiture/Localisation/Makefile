@@ -2,15 +2,23 @@
 # Makefile module : Localisation
 # ==============================
 
-CC := gcc
-CFLAGS := -Wall -O2 $(INCLUDES)
+# BUILD_DIR est le chemin absolue vers le dossier de build, typiquement ws/build/voiture/Localisation/
+# INCLUDES contient les arguments -I<path> des dossiers src/tools/*/, src/common/, src/voiture/ et src/voiture/*/
 
-SRC := main_localisation.c
+CC := gcc
+
+# Partie à modifier 
+# ==============================
+ARGS := $(CFLAGS) $(INCLUDES)  # Possibilité d'ajouter des flags (-lm, -pthread par exemple)
+SRC := main_localisation.c # A modifier lorsqu'on ajoute des fichiers de code
+# ==============================
+
+# Création de la liste des fichiers objets à créer (.o)
 OBJS := $(addprefix $(BUILD_DIR)/, $(SRC:.c=.o))
 
 all: $(OBJS)
 
 $(BUILD_DIR)/%.o: %.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	@mkdir -p $(dir $@) 
+	$(CC) $(ARGS) -c $< -o $@ 
 	@echo "✅ Module Localisation : $@ compilé"

@@ -3,8 +3,10 @@
 
 #include "voiture_globals.h"
 #include <time.h>
-#include "utils.h"
+#include "logger.h"
 
+
+#define TAG "voiture_globals"
 
 const struct timespec TIMESPEC_UNDEFINED = {0, 0};
 static int initialized = 0;
@@ -13,7 +15,7 @@ static inline int check_initialized(void) {
     if (initialized) {
         return 0;
     }
-    DEBUG_PRINT("voiture_globals non initialisé");
+    DBG(TAG, "Variable globale non initialisée");
     return -1;
 }
 

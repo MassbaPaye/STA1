@@ -2,9 +2,15 @@
 # Makefile pour src/controleur
 # ==============================
 
+# Variables fournies par le Makefile global
+#		CFLAGS="$(CFLAGS)" \
+		CONTROLEUR_BUILD=$(CONTROLEUR_BUILD) \
+		COMMON_INCLUDES="$(INCLUDES_COMMON)" \
+		TOOLS_INCLUDES="$(INCLUDES_TOOLS)" \
+		DISABLE="$(DISABLE)" \
+
 # Compilateur
 CC := gcc
-CFLAGS := -Wall -O2 -pthread
 
 
 # Variables pour le build
@@ -31,7 +37,7 @@ modules:
 		if echo "$(DISABLE)" | grep -qw "$$(basename $$m)"; then \
 			echo "⏭️  Module $$(basename $$m) désactivé"; \
 		else \
-			$(MAKE) --no-print-directory -C $$m BUILD_DIR=$(CONTROLEUR_BUILD)/$$(basename $$m) INCLUDES="$(INCLUDES)" || \
+			$(MAKE) --no-print-directory -C $$m CFLAGS="$(CFLAGS)" BUILD_DIR=$(CONTROLEUR_BUILD)/$$(basename $$m) INCLUDES="$(INCLUDES)" || \
 				echo "⚠️  Erreur dans $$(basename $$m)"; \
 		fi; \
 	done

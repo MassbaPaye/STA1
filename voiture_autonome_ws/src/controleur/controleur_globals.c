@@ -5,7 +5,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "logger.h"
 
+#define TAG "contorleur_globals"
 
 /* ==== Déclaration des variables globales ==== */
 const struct timespec TIMESPEC_UNDEFINED = {0, 0};
@@ -24,7 +26,7 @@ void init_controleur_globals(void) {
     }
     // Initialise la queue globale (ex: capacité 100 demandes)
     if (queue_init(&demandes_queue, 100, sizeof(Demande)) != 0) {
-        fprintf(stderr, "Erreur init demandes_queue\n");
+        ERR(TAG, "Erreur init demandes_queue\n");
         exit(EXIT_FAILURE);
     }
 }
