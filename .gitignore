@@ -3,6 +3,6 @@ python_env/venv/
 *.pyc
 __pycache__/
 .vscode/
-
+environementSTA/
 # Dossier de build
 build/
