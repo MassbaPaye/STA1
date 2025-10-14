@@ -3,6 +3,7 @@
 #include "logger.h"
 #include "controleur_globals.h"
 #include "queue.h"
+#include "serveur_TCP.h"
 
 #define TAG "main"
 
@@ -15,7 +16,7 @@ int main() {
 
     // Initialisation des variables globales
     init_controleur_globals();
-
+    main_communication_tcp_controleur();
     // Exemple : afficher la taille de la queue
     INFO(TAG, "→ Taille initiale de la queue de demandes : %d", size_demande_queue());
 
