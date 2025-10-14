@@ -1,0 +1,22 @@
+def distance_from_bbox(bbox, f_px, H_real_m, cx):
+    # bbox = (x, y, w, h) en pixels
+    x,y,w,h = bbox
+    if h <= 1: 
+        return None
+    Z = (f_px * H_real_m) / float(h)   # distance avant
+    x_c = x + w/2.0
+    X = (x_c - cx) * Z / f_px          # décentrage latéral panneau
+    return Z, X
+
+
+
+# h_px = hauteur du bbox en pixels,f_px = focale en pixels (calibrage rapide ci-dessous), x_c = abscisse du centre du bbox, c_x = centre optique (≈ moitié de la largeur d’image si pas calibré)
+
+# Comment obtenir f_px sans checkerboard (méthode express)
+#Placez un panneau connu (hauteur H_real, ex. 0,30 m) à une distance mesurée D_ref (ex. 1,50 m).
+
+#Mesurez sa hauteur en pixels h_ref_px via votre détection.
+
+#Déduisez f_px = h_ref_px * D_ref / H_real.
+
+#Conservez cette valeur (fixe tant que la focale/résolution ne changent pas).
