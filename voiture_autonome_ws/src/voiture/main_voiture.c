@@ -5,6 +5,7 @@
 #include "voiture_globals.h"
 #include "main_localisation.h"
 #include "main_module_exemple.h"
+#include "communication_tcp.h"
 
 #define TAG "main"
 
@@ -33,6 +34,7 @@ int main(int argc, char *argv[]) {
     // Initialisation des variables globales
     init_voiture_globals();
     start_localisation("Démarrage de la localisation !\n");
+    main_communication_TCP_client();
     
     
     exemple_module("Message du module d'exemple");
