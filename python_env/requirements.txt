@@ -14,3 +14,15 @@ opencv-python==4.10.0.84
 ultralytics==8.3.51
 torch==2.3.1
 torchvision==0.18.1
+# TensorFlow Lite runtime for Raspberry Pi (Linux ARM); not available on macOS via pip
+tflite-runtime ; platform_system == "Linux" and (platform_machine == "armv7l" or platform_machine == "aarch64" or platform_machine == "armv6l")
+# On macOS (Apple Silicon), use TensorFlow to access tf.lite.Interpreter (optional for dev)
+tensorflow-macos ; platform_system == "Darwin" and platform_machine == "arm64"
+# Optional: conversion YOLOv8 to TFLite (export only)
+tf_keras==2.20.1
+onnx==1.19.1
+onnxruntime==1.23.1
+onnx2tf==1.22.3
+onnxslim==0.1.71
+sng4onnx==1.0.4
+tflite-support==0.1.0a1

@@ -33,6 +33,12 @@ typedef enum {
     PANNEAU_FIN_LIMITATION = 4 // A completer / modifier
 } PanneauType;
 
+typedef enum {
+    Voiture = 1,
+    pietons = 2,
+    Autre = 3,
+} ObstacleType;
+
 // === TYPES UTILITAIRES ===
 
 /*  Type Utilitaire : Point
@@ -155,6 +161,13 @@ typedef struct {
     int distance;
     PanneauType type;
 } Panneau;
+
+typedef struct {
+    int distance;
+    ObstacleType type;
+    Point pointd;
+    Point pointg;
+} ObstacleType;
 
 /*  A définir : MarquageSol 
     Tache émetrice/ecrivaine : Detection Environnement

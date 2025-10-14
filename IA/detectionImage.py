@@ -1,22 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Détection de panneaux – Version YOLO uniquement
+Détection de panneaux – Version TensorFlow Lite (TFLite)
 
-• Utilise la librairie `ultralytics` (YOLOv8/YOLOv11)
-• Fonctionne sur ordinateur (CPU/GPU). Plus tard, tu pourras exporter en TFLite/ONNX pour le Pi/IMX500.
+• N'utilise PAS ultralytics/torch : inférence directe via TensorFlow Lite / tflite-runtime
+• Compatible ordinateur (macOS) et Raspberry Pi (recommandé : tflite-runtime)
+• Nécessite un modèle YOLOv8 exporté en .tflite (ex: best_int8.tflite)
 
-Installation (dans ton venv):
-  pip install ultralytics opencv-python
+Installation (venv) :
+  # Sur Raspberry Pi (recommandé)
+  pip install tflite-runtime opencv-python
 
-Exemples:
-  # Webcam avec modèle par défaut (yolov8n.pt)
-  python3 detectionImage.py --source 0
+  # Sur macOS (dev local) : tflite-runtime n'est pas dispo via pip -> utiliser tf.lite
+  pip install tensorflow-macos opencv-python
 
-  # Vidéo + poids spécifiques + seuil de confiance
-  python3 detectionImage.py --source chemin/video.mp4 --weights yolov8n.pt --conf 0.35 --img 640
+  # Pour utiliser un .pt (Ultralytics/PyTorch) sur desktop
+  pip install ultralytics torch torchvision
 
-Touches:
+Exemples :
+  # Webcam avec modèle TFLite
+  python3 detectionImage.py --source 0 --weights best_int8.tflite --img 320 --conf 0.25
+
+  # Vidéo + seuil de confiance + classes (ids séparés par virgules)
+  python3 detectionImage.py --source video.mp4 --weights best.tflite --conf 0.35 --img 416 --classes 0,1
+
+  # Desktop (macOS) avec Ultralytics .pt (PyTorch)
+  # (nécessite: pip install ultralytics torch torchvision)
+  python3 detectionImage.py --source 0 \
+    --weights yolov8n.pt --img 640 --conf 0.25 --device mps
+
+Touches :
   q -> quitter
   p -> pause/reprendre
 """
@@ -29,19 +42,241 @@ import sys
 import cv2
 import numpy as np
 
-from ultralytics import YOLO
+# ---- Import TFLite : privilégier tflite-runtime, sinon fallback vers tf.lite ----
+try:
+    import tflite_runtime.interpreter as tflite
+except Exception:  # macOS etc.
+    try:
+        import tensorflow as tf
+        tflite = tf.lite  # fallback
+    except Exception as e:
+        print("\n[ERREUR] Ni tflite-runtime ni tensorflow ne sont installés.\n"
+              "Installe : 'pip install tflite-runtime' (Linux/ARM) ou 'pip install tensorflow-macos' (macOS).\n")
+        raise e
+
+# Optionnel: support Ultralytics (.pt) pour l'inférence PyTorch sur desktop
+try:
+    from ultralytics import YOLO as _YOLO
+except Exception:
+    _YOLO = None
 
 
+# ------------------------- Utilitaires -------------------------
+
+def letterbox(img, new_shape=(640, 640), color=(114, 114, 114)):
+    """Redimension avec bandes (letterbox) pour garder le ratio.
+    Retourne : image, ratio (rw, rh), dwdh (pad_w, pad_h)
+    """
+    shape = img.shape[:2]  # h, w
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    new_unpad = (int(round(shape[1] * r)), int(round(shape[0] * r)))  # w, h
+    # resize
+    img_resized = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    # padding
+    dw = new_shape[1] - new_unpad[0]
+    dh = new_shape[0] - new_unpad[1]
+    dw /= 2
+    dh /= 2
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img_padded = cv2.copyMakeBorder(img_resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+    ratio = (r, r)
+    dwdh = (left, top)
+    return img_padded, ratio, dwdh
+
+
+def nms_boxes(boxes, scores, iou_thres=0.45, score_thres=0.25):
+    """NMS en utilisant OpenCV. boxes: [x,y,w,h] en pixels de l'image letterboxed."""
+    idxs = cv2.dnn.NMSBoxes(boxes, scores, score_thres, iou_thres)
+    if len(idxs) == 0:
+        return []
+    # OpenCV peut renvoyer un tableau d'indices Nx1
+    return [int(i) for i in np.array(idxs).reshape(-1)]
+
+
+def parse_class_filter(arg):
+    """Retourne une liste d'IDs de classes à garder (ints) ou None pour ne pas filtrer."""
+    if not arg:
+        return None
+    parts = [p.strip() for p in str(arg).split(',') if p.strip()]
+    if not parts:
+        return None
+    if all(p.isdigit() for p in parts):
+        return [int(p) for p in parts]
+    print("[AVERTISSEMENT] --classes doit contenir des IDs entiers (ex: '0,1'). Filtre ignoré.")
+    return None
+
+
+# ------------------------- Inférence TFLite -------------------------
+
+class TFLiteYOLO:
+    def __init__(self, weights: Path, imgsz: int = 640, conf: float = 0.25, iou: float = 0.45, threads: int = 1):
+        weights = Path(weights)
+        if not weights.exists():
+            raise FileNotFoundError(f"Poids TFLite introuvables: {weights}")
+        self.imgsz = int(imgsz)
+        self.conf = float(conf)
+        self.iou = float(iou)
+
+        self.interpreter = tflite.Interpreter(model_path=str(weights))
+        self.interpreter.allocate_tensors()
+        self.inp = self.interpreter.get_input_details()[0]
+        self.out = self.interpreter.get_output_details()[0]
+
+        # Déduire format d'entrée
+        self.in_h, self.in_w = self.inp['shape'][1], self.inp['shape'][2]
+        # Certains exports YOLO ignorent self.imgsz; on force à la taille d'entrée du modèle
+        self.imgsz = int(self.in_w)
+
+    def infer(self, bgr, class_filter=None):
+        h0, w0 = bgr.shape[:2]
+        img, ratio, dwdh = letterbox(bgr, (self.imgsz, self.imgsz))
+        x = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        x = np.expand_dims(x, 0)
+
+        self.interpreter.set_tensor(self.inp['index'], x)
+        self.interpreter.invoke()
+        pred = self.interpreter.get_tensor(self.out['index'])
+        # pred shape usually (1, N, 4+classes) or (1, N, 5+classes) with obj
+        pred = np.squeeze(pred)  # (N, C)
+        if pred.ndim != 2:
+            raise RuntimeError(f"Sortie inattendue du modèle TFLite: shape={pred.shape}")
+
+        # Détecter si un logit d'objectness est présent
+        # Heuristique : si C >= 6 et les colonnes après 5 ressemblent à des scores de classes
+        if pred.shape[1] >= 6:
+            # Essayer format [x,y,w,h,obj,cls...]
+            xywh = pred[:, :4]
+            obj = pred[:, 4:5]
+            cls = pred[:, 5:]
+            cls_scores = obj * cls  # multiplication obj * prob classe
+        else:
+            # Format [x,y,w,h,cls...] (rare)
+            xywh = pred[:, :4]
+            cls = pred[:, 4:]
+            cls_scores = cls
+
+        scores = cls_scores.max(axis=1)
+        class_ids = cls_scores.argmax(axis=1)
+
+        # Filtrer par confiance
+        keep = scores >= self.conf
+        xywh = xywh[keep]
+        scores = scores[keep]
+        class_ids = class_ids[keep]
+
+        # Filtre de classes
+        if class_filter is not None:
+            m = np.isin(class_ids, np.array(class_filter, dtype=int))
+            xywh = xywh[m]
+            scores = scores[m]
+            class_ids = class_ids[m]
+
+        # Convertir xywh (sur image padded) -> xyxy pixels
+        # Les coordonnées sont relatives à l'image d'entrée (imgsz)
+        # YOLO export renvoie souvent en pixels sur l'entrée; sinon normalisées [0,1].
+        # On détecte en supposant que max coord > 1 => déjà en pixels
+        if xywh.size:
+            scale = 1.0 if np.max(xywh[:, :2]) > 1.0 else float(self.imgsz)
+        else:
+            scale = float(self.imgsz)
+        xywh_px = xywh * scale
+        x, y, w, h = xywh_px[:, 0], xywh_px[:, 1], xywh_px[:, 2], xywh_px[:, 3]
+        x1 = x - w / 2
+        y1 = y - h / 2
+        x2 = x + w / 2
+        y2 = y + h / 2
+        # Enlever le padding et re-projeter vers l'image d'origine
+        dw, dh = dwdh
+        x1 = (x1 - dw) / ratio[0]
+        y1 = (y1 - dh) / ratio[1]
+        x2 = (x2 - dw) / ratio[0]
+        y2 = (y2 - dh) / ratio[1]
+
+        # Clipper aux limites
+        x1 = np.clip(x1, 0, w0)
+        y1 = np.clip(y1, 0, h0)
+        x2 = np.clip(x2, 0, w0)
+        y2 = np.clip(y2, 0, h0)
+
+        # Préparer pour NMS OpenCV (x,y,w,h)
+        boxes_xywh = np.stack([x1, y1, x2 - x1, y2 - y1], axis=1).tolist()
+        scores_list = scores.tolist()
+
+        keep_idx = nms_boxes(boxes_xywh, scores_list, iou_thres=self.iou, score_thres=self.conf)
+
+        detections = []  # liste de tuples (x1,y1,x2,y2,score,cls_id)
+        for i in keep_idx:
+            xx1, yy1, ww, hh = boxes_xywh[i]
+            detections.append((int(xx1), int(yy1), int(xx1 + ww), int(yy1 + hh), float(scores_list[i]), int(class_ids[i])))
+        return detections
+
+
+# ------------------------- Inférence Ultralytics (.pt) -------------------------
+
+class YOLOv8PT:
+    def __init__(self, weights: Path, imgsz: int = 640, conf: float = 0.25, iou: float = 0.45, device: str | None = None):
+        if _YOLO is None:
+            raise ImportError("Ultralytics non installé. Fais: 'pip install ultralytics'.")
+        weights = Path(weights)
+        if not weights.exists():
+            raise FileNotFoundError(f"Poids .pt introuvables: {weights}")
+        self.imgsz = int(imgsz)
+        self.conf = float(conf)
+        self.iou = float(iou)
+        self.device = device  # 'cpu', 'cuda', 'mps', etc.
+        self.model = _YOLO(str(weights))
+
+    def infer(self, bgr, class_filter=None):
+        # Ultralytics accepte directement un ndarray BGR
+        res = self.model.predict(
+            bgr,
+            imgsz=self.imgsz,
+            conf=self.conf,
+            iou=self.iou,
+            device=self.device if self.device else None,
+            verbose=False)
+        if not res:
+            return []
+        r0 = res[0]
+        if r0.boxes is None or r0.boxes.shape[0] == 0:
+            return []
+        boxes = r0.boxes
+        # xyxy in pixels, conf, cls
+        xyxy = boxes.xyxy.cpu().numpy()
+        scores = boxes.conf.cpu().numpy()
+        cls_ids = boxes.cls.cpu().numpy().astype(int)
+        dets = []
+        for (x1, y1, x2, y2), s, c in zip(xyxy, scores, cls_ids):
+            if class_filter is not None and int(c) not in class_filter:
+                continue
+            dets.append((int(x1), int(y1), int(x2), int(y2), float(s), int(c)))
+        return dets
+
+
+def create_detector(weights: Path, imgsz: int, conf: float, iou: float, threads: int, device: str | None):
+    ext = str(Path(weights).suffix).lower()
+    if ext == '.tflite':
+        return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads)
+    if ext == '.pt':
+        return YOLOv8PT(weights=weights, imgsz=imgsz, conf=conf, iou=iou, device=device)
+    raise ValueError(f"Extension de poids non supportée: {ext}. Utilise .tflite ou .pt")
+
+
+# ------------------------- Programme principal -------------------------
 
 def parse_args():
-    ap = argparse.ArgumentParser(description="Détection YOLO (webcam/vidéo)")
+    ap = argparse.ArgumentParser(description="Détection YOLO TFLite (webcam/vidéo)")
     ap.add_argument('--source', default='0', help='Index caméra (0,1,...) ou chemin vidéo')
-    ap.add_argument('--weights', type=Path, default=Path('yolov8n.pt'), help='Chemin vers les poids YOLO .pt')
+    ap.add_argument('--weights', type=Path, required=True, help='Chemin vers le modèle TFLite (.tflite)')
     ap.add_argument('--conf', type=float, default=0.25, help='Seuil de confiance')
-    ap.add_argument('--img', type=int, default=640, help='Taille d\'entrée (côté long)')
-    ap.add_argument('--device', default='auto', help='cpu, 0, 0,1, etc. (auto par défaut)')
-    ap.add_argument('--classes', type=str, default='', help="Filtre classes (ex: 'stop sign' ou '11' ou '11,12')")
+    ap.add_argument('--img', type=int, default=640, help="Taille d'entrée (côté long)")
+    ap.add_argument('--iou', type=float, default=0.45, help='Seuil IOU pour NMS')
+    ap.add_argument('--classes', type=str, default='', help="Filtre classes par IDs (ex: '0' ou '0,1')")
     ap.add_argument('--max-fps', type=float, default=0.0, help='Limiter les FPS (0 = illimité)')
+    ap.add_argument('--device', type=str, default='', help="Device pour Ultralytics .pt (cpu, cuda, mps)")
     return ap.parse_args()
 
 
@@ -55,36 +290,16 @@ def open_source(src):
     return cap
 
 
-def parse_class_filter(arg, names):
-    """Retourne une liste d'IDs de classes à garder ou None pour ne pas filtrer.
-       On accepte des noms (ex: "stop sign") ou des IDs (ex: "11,12")."""
-    if not arg:
-        return None
-    arg = arg.strip()
-    ids = []
-    # Essaye IDs séparés par virgule
-    if all(p.strip().isdigit() for p in arg.split(',')):
-        return [int(p.strip()) for p in arg.split(',') if p.strip()]
-    # Sinon mapper noms -> ids
-    lower = {str(v).lower(): k for k, v in names.items()}
-    for token in arg.split(','):
-        t = token.strip().lower()
-        if t in lower:
-            ids.append(lower[t])
-    return ids or None
-
-
 def main():
     args = parse_args()
 
-    # Charge le modèle
-    model = YOLO(str(args.weights))  # télécharge auto si 'yolov8n.pt' absent
+    # Prépare le modèle (TFLite ou Ultralytics .pt)
+    detector = create_detector(weights=args.weights, imgsz=args.img, conf=args.conf, iou=args.iou, threads=1, device=(args.device or None))
 
     # Ouvre la source
     cap = open_source(args.source)
 
-    # Prépare le filtre de classes
-    class_filter = parse_class_filter(args.classes, model.names)
+    class_filter = parse_class_filter(args.classes)
 
     paused = False
     t_prev = time.time()
@@ -97,52 +312,35 @@ def main():
             if not ok:
                 break
 
-            # Inférence YOLO (retourne une liste de Results)
-            res = model.predict(
-                source=frame,  # image numpy
-                conf=args.conf,
-                imgsz=args.img,
-                device=args.device,
-                verbose=False
-            )[0]
+            dets = detector.infer(frame, class_filter=class_filter)
 
-            # Dessin personnalisé pour contrôler l'affichage
-            boxes = res.boxes  # Boxes object
             annotated = frame.copy()
-
-            if boxes is not None and len(boxes) > 0:
-                xyxy = boxes.xyxy.cpu().numpy()
-                confs = boxes.conf.cpu().numpy()
-                clss  = boxes.cls.cpu().numpy().astype(int)
-
-                for (x1, y1, x2, y2), sc, c in zip(xyxy, confs, clss):
-                    if class_filter is not None and c not in class_filter:
-                        continue
-                    x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
-                    cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
-                    name = model.names.get(c, str(c))
-                    label = f"{name} {sc:.2f}"
-                    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                    cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 0, 0), -1)
-                    cv2.putText(annotated, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
+            for x1, y1, x2, y2, score, cid in dets:
+                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
+                label = f"{cid} {score:.2f}"  # Si tu as un mapping id->nom, remplace cid par le nom
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 0, 0), -1)
+                cv2.putText(annotated, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
             # FPS (moyenne mobile)
             now = time.time()
             dt = now - t_prev
             t_prev = now
             if dt > 0:
-                inst = 1.0/dt
-                fps_ma = alpha*fps_ma + (1-alpha)*inst
-            cv2.putText(annotated, f"FPS: {fps_ma:5.1f}", (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40,220,0), 2, cv2.LINE_AA)
+                inst = 1.0 / dt
+                fps_ma = alpha * fps_ma + (1 - alpha) * inst
+            cv2.putText(annotated, f"FPS: {fps_ma:5.1f}", (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 220, 0), 2, cv2.LINE_AA)
+        else:
+            annotated = frame
 
-        cv2.imshow('YOLO – Detection panneaux', annotated if not paused else frame)
+        cv2.imshow('TFLite – Detection panneaux', annotated)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
         if key == ord('p'):
             paused = not paused
         if args.max_fps and args.max_fps > 0:
-            time.sleep(max(0.0, (1.0/args.max_fps) - (time.time() - t_prev)))
+            time.sleep(max(0.0, (1.0 / args.max_fps) - (time.time() - t_prev)))
 
     cap.release()
     cv2.destroyAllWindows()
