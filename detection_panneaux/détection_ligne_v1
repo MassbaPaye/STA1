@@ -1,0 +1,50 @@
+
+import cv2, numpy as np
+
+def lane_offset(frame_bgr, W_m=0.7, y_rel=0.8, T=80):
+    H, W = frame_bgr.shape[:2]
+    # 1) ROI: bas de l'image
+    y0 = int(H*0.55)
+    roi = frame_bgr[y0:, :]
+    g  = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    g  = cv2.GaussianBlur(g, (3,3), 0)
+
+    # 2) Seuillage noir simple (ou cv2.adaptiveThreshold si lumière dure)
+    _, bw = cv2.threshold(g, T, 255, cv2.THRESH_BINARY_INV)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
+
+    # 3) Hough
+    lines = cv2.HoughLinesP(bw, 1, np.pi/180, threshold=40, minLineLength=30, maxLineGap=10)
+    if lines is None:
+        return 0.0, None  # pas de lignes → offset nul (ou garder dernier)
+
+    # 4) Sépare gauche/droite et stocke points (x,y)
+    ptsL, ptsR = [], []
+    cx = W//2
+    for l in lines[:,0,:]:
+        x1,y1,x2,y2 = l
+        xm = (x1+x2)//2
+        ym = (y1+y2)//2
+        (ptsL if xm < cx else ptsR).append((xm,ym))
+
+    if len(ptsL) < 5 or len(ptsR) < 5:
+        return 0.0, None
+
+    # 5) Fit x(y) ≈ a*y + b (on interpole x à y_ref)
+    def fit_x_at_y(pts, yq):
+        pts = np.array(pts)
+        y = pts[:,1].astype(np.float32)
+        x = pts[:,0].astype(np.float32)
+        a,b = np.polyfit(y, x, 1)  # x = a*y + b
+        return a*yq + b
+
+    y_ref = int((H - y0) * y_rel)
+    xL = fit_x_at_y(ptsL, y_ref)
+    xR = fit_x_at_y(ptsR, y_ref)
+    lane_center = (xL + xR)/2.0
+    err_px = (cx - lane_center)
+
+    # 6) px → m (approx à y_ref)
+    scale = (W_m / max(10.0, (xR - xL)))  # évite division par ~0
+    err_m = err_px * scale
+    return float(err_m), {"xL":xL, "xR":xR, "lane_center":lane_center, "y_ref":y_ref, "bw":bw}
