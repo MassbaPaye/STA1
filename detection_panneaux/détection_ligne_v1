@@ -3,17 +3,17 @@ import cv2, numpy as np
 
 def lane_offset(frame_bgr, W_m=0.7, y_rel=0.8, T=80):
     H, W = frame_bgr.shape[:2]
-    # 1) ROI: bas de l'image
+    # 1) ROI: garde le bas de l'image
     y0 = int(H*0.55)
     roi = frame_bgr[y0:, :]
     g  = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     g  = cv2.GaussianBlur(g, (3,3), 0)
 
-    # 2) Seuillage noir simple (ou cv2.adaptiveThreshold si lumière dure)
+    # 2) Seuillage noir simple (ou cv2.adaptiveThreshold si lumière dure)         Morpho : open (3×3) pour virer les points isolés.
     _, bw = cv2.threshold(g, T, 255, cv2.THRESH_BINARY_INV)
     bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
 
-    # 3) Hough
+    # 3) Hough (Seuil “noir”) thresh = img < T (T ~ 60–90 sur 0–255). Option : adaptive threshold si la lumière varie beaucoup.
     lines = cv2.HoughLinesP(bw, 1, np.pi/180, threshold=40, minLineLength=30, maxLineGap=10)
     if lines is None:
         return 0.0, None  # pas de lignes → offset nul (ou garder dernier)
@@ -44,7 +44,11 @@ def lane_offset(frame_bgr, W_m=0.7, y_rel=0.8, T=80):
     lane_center = (xL + xR)/2.0
     err_px = (cx - lane_center)
 
-    # 6) px → m (approx à y_ref)
+
+
+    # 6) px → m (approx à y_ref) Convertir en mètres si vous connaissez la largeur route W (ex. 0,6–0,8 m pour votre piste)
     scale = (W_m / max(10.0, (xR - xL)))  # évite division par ~0
     err_m = err_px * scale
     return float(err_m), {"xL":xL, "xR":xR, "lane_center":lane_center, "y_ref":y_ref, "bw":bw}
+
+#Params qui marchent bien sur Pi 4 : 320×240 @ 30 fps, ROI ~ 45% bas,T (seuil noir) ~ 70–90 (à ajuster une fois),minLineLength=30, maxLineGap=10.
