@@ -6,11 +6,11 @@
 # INCLUDES contient les arguments -I<path> des dossiers src/tools/*/, src/common/, src/controleur/ et src/controleur/*/
 
 CC := gcc
-
+# gcc TCP_controleur.c message_controleur.c -o controleur -lpthread
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)     # Possibilité d'ajouter des flags (-Wall -O2 -lm -pthread par défaut)
-SRC := communication_tcp.c      # A modifier lorsqu'on ajoute des fichiers de code
+SRC := TCP_controleur.c message_controleur.c      # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)

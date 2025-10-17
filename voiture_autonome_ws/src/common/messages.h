@@ -34,9 +34,9 @@ typedef enum {
 } PanneauType;
 
 typedef enum {
-    Voiture = 1,
-    pietons = 2,
-    Autre = 3,
+    VoitureObstacle = 1,
+    PietonObstacle = 2,
+    AutreObstacle = 3,
 } ObstacleType;
 
 // === TYPES UTILITAIRES ===
@@ -144,13 +144,6 @@ typedef struct {
     Tache réceptrice/lectrice : Gestion de comportement
     Description : Signal un obstacle sur la chaussée
 */
-typedef struct {
-    int rayon;
-    int distance;
-    int angle_droite;
-    int angle_gauche;
-    char type[64];
-} Obstacle;
 
 /*  A définir : Obstacle 
     Tache émetrice/ecrivaine : Detection Environnement
@@ -167,7 +160,7 @@ typedef struct {
     ObstacleType type;
     Point pointd;
     Point pointg;
-} ObstacleType;
+} Obstacle;
 
 /*  A définir : MarquageSol 
     Tache émetrice/ecrivaine : Detection Environnement
