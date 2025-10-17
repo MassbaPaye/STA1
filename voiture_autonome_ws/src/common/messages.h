@@ -8,9 +8,10 @@
 typedef enum {
     MESSAGE_POSITION = 1,
     MESSAGE_DEMANDE  = 2,
-    MESSAGE_ETAT     = 3,
-    MESSAGE_CONSIGNE = 4,
-    MESSAGE_ITINERAIRE = 5
+    MESSAGE_CONSIGNE = 3,
+    MESSAGE_ITINERAIRE = 4,
+    MESSAGE_FIN = 5,
+    MESSAGE_ETAT = 6
 } MessageType;
 
 /* Enumération pour le type de demande Voiture->Controleur routier */

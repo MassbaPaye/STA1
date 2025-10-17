@@ -14,22 +14,29 @@ typedef struct {
 } VoitureConnection;
 
 /* --- Tableau global des connexions et compteur --- */
-extern VoitureConnection voitures_list[MAX_VOITURES];
+extern VoitureConnection* voitures_list[MAX_VOITURES];
 extern int nb_voitures;
+
+VoitureConnection* get_voiture_by_id(int id_voiture);
+VoitureConnection* get_voiture_by_sockfd(int sockfd);
 
 /* === Fonctions génériques === */
 int sendMessage(int sockfd, MessageType type, void* message);
 int recvMessage(int sockfd, MessageType* type, void* message);
 
 /* === Fonctions spécialisées === */
-int sendPositionVoiture(int sockfd, const PositionVoiture* pos);
-int sendDemande(int sockfd, const Demande* dem);
 int sendConsigne(int sockfd, const Consigne* cons);
 int sendItineraire(int sockfd, const Itineraire* iti);
+int sendFin(int sockfd);
+
+int sendMessage(int Id, MessageType type, void* message);
 
 int recvPositionVoiture(int sockfd, PositionVoiture* pos);
 int recvDemande(int sockfd, Demande* dem);
-int recvConsigne(int sockfd, Consigne* cons);
-int recvItineraire(int sockfd, Itineraire* iti);
+int recvFin(int sockfd, char* buffer, size_t max_size);
 
-int trouver_socket(int id_voiture);
+void* receive_thread(void* arg);
+
+void afficher_voitures_connectees();
+
+void deconnecter_voiture(VoitureConnection* v);

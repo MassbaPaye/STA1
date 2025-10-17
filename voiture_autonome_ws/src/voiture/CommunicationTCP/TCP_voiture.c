@@ -10,25 +10,29 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include "message_voiture.h"
+#include "messages.h"
 #include "config.h"
 #include "TCP_voiture.h"
+#include "logger.h"
 
-int sockfd; // socket globale
+#define TAG "communication TCP"
+
+int sockfd = -1;
+pthread_t tid_rcv = -1;
 
 void* receive_thread(void* arg) {
-    (void)arg;
-
+    
     MessageType type;
     char buffer[2048];
-
     while (1) {
+        INFO(TAG, "avant recvMessage");
         int nbytes = recvMessage(sockfd, &type, buffer);
+        INFO(TAG, "apres recvMessage");
         if (nbytes <= 0) {
             printf("[Client] Connexion fermée ou erreur.\n");
             break;
         }
-
+        
         switch (type) {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
@@ -49,7 +53,10 @@ void* receive_thread(void* arg) {
                 free(iti->points); // Important : recvItineraire alloue dynamiquement
                 break;
             }
-
+            case MESSAGE_FIN: {
+                printf("[Client] Reçu MESSAGE_FIN, fermeture.\n");
+                return NULL;
+            }
             default:
                 printf("[Client] Message type %d ignoré.\n", type);
                 break;
@@ -59,47 +66,44 @@ void* receive_thread(void* arg) {
     return NULL;
 }
 
-void* main_communication_voiture(void* arg) {
-    struct sockaddr_in serv_addr;
+static int recvBuffer(int sockfd, void* buffer, size_t size) {
+    return recv(sockfd, buffer, size, 0);
+}
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) { perror("Erreur création socket"); exit(1); }
+int recvConsigne(int sockfd, Consigne* cons) {
+    return recvBuffer(sockfd, cons, sizeof(Consigne));
+}
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(TCP_PORT);
-    serv_addr.sin_addr.s_addr = inet_addr(CONTROLEUR_IP);
+int recvItineraire(int sockfd, Itineraire* iti) {
+    // réception du header
+    recvBuffer(sockfd, &iti->id_voiture, sizeof(int));
+    recvBuffer(sockfd, &iti->nb_points, sizeof(int));
+    // allocation dynamique des points
+    iti->points = malloc(iti->nb_points * sizeof(Point));
+    if (!iti->points) return -1;
+    return recvBuffer(sockfd, iti->points, iti->nb_points * sizeof(Point));
+}
 
-    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Erreur connexion");
-        exit(1);
+int recvFin(int sockfd, char* buffer, size_t max_size) {
+    int n = recvBuffer(sockfd, buffer, max_size);
+    if (n <= 0) return n;
+    buffer[max_size - 1] = '\0'; // sécurité
+    return n;
+}
+
+int recvMessage(int sockfd, MessageType* type, void* message) {
+    // lire le type
+    INFO(TAG, "avant rcvbuffer");
+    int n = recvBuffer(sockfd, type, sizeof(MessageType));
+    if (n <= 0) {
+        perror("Erreur recvBuffer");
+        return -1;  // ou gérer la déconnexion
     }
-
-    printf("[Client] Connecté au serveur\n");
-
-    pthread_t tid;
-    pthread_create(&tid, NULL, receive_thread, NULL);
-
-    // Boucle principale pour envoyer Position ou Demande
-    char cmd[32];
-    while (1) {
-        printf("Tapez 'pos', 'dem', ou 'fin' > ");
-        fgets(cmd, sizeof(cmd), stdin);
-        cmd[strlen(cmd)-1] = '\0';
-
-        if (strcmp(cmd, "fin") == 0) break;
-
-        if (strcmp(cmd, "pos") == 0) {
-            PositionVoiture pos = {1, 100, 200, 0, 90.0f, 10.0f, 0.0f, 0.0f};
-            sendMessage(sockfd, MESSAGE_POSITION, &pos);
-            printf("[Client] Position envoyée\n");
-        } else if (strcmp(cmd, "dem") == 0) {
-            Demande d = {1, 42, RESERVATION_STRUCTURE, 'n'};
-            sendMessage(sockfd, MESSAGE_DEMANDE, &d);
-            printf("[Client] Demande envoyée\n");
-        }
+    INFO(TAG, "type : %d", *type);
+    switch (*type) {
+        case MESSAGE_CONSIGNE:   return recvConsigne(sockfd, (Consigne*)message);
+        case MESSAGE_ITINERAIRE: return recvItineraire(sockfd, (Itineraire*)message);
+        case MESSAGE_FIN:        return recvFin(sockfd, (char*)message, 2048);
+        default: return -1;
     }
-
-    close(sockfd);
-    pthread_join(tid, NULL);
-    return NULL;
 }

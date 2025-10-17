@@ -1,7 +1,7 @@
 /********************************************************/
-/* Serveur TCP multi-voitures avec interface           */
-/* Date : 14/10/2025                                   */
-/* Version : 3.1                                       */
+/* Serveur TCP multi-voitures avec interface            */
+/* Date : 14/10/2025                                    */
+/* Version : 3.3                                        */
 /********************************************************/
 
 #include <stdio.h>
@@ -12,101 +12,49 @@
 #include <arpa/inet.h>
 #include "TCP_controleur.h"
 #include "messages.h"
-#include "message_controleur.h"
+#include "communication_tcp.h"
+#include "logger.h"
 
+#define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
 
-// Thread pour chaque voiture : réception des messages
-void* receive_thread(void* arg) {
-    VoitureConnection* v = (VoitureConnection*) arg;
-    MessageType type;
-    char buffer[2048];
-
-    printf("[Serveur] Thread de la voiture %d démarré.\n", v->id_voiture);
-
-    while (1) {
-        int nbytes = recvMessage(v->sockfd, &type, buffer);
-        if (nbytes <= 0) {
-            printf("[Serveur] Connexion voiture %d fermée.\n", v->id_voiture);
-            close(v->sockfd);
-            break;
-        }
-
-        switch(type) {
-            case MESSAGE_POSITION: {
-                PositionVoiture* pos = (PositionVoiture*) buffer;
-                printf("[Voiture %d] Position : (%d,%d,%d) theta=%.2f\n",
-                       pos->id_voiture, pos->x, pos->y, pos->z, pos->theta);
-                break;
-            }
-
-            case MESSAGE_DEMANDE: {
-                Demande* d = (Demande*) buffer;
-                printf("[Voiture %d] Demande : structure=%d type=%d dir=%c\n",
-                       d->id_voiture, d->structure_id, d->type_operation, d->direction);
-                break;
-            }
-
-            default:
-                printf("[Voiture %d] Message type %d ignoré.\n", v->id_voiture, type);
-                break;
-        }
-    }
-
-    // Retirer la voiture de la liste
-    pthread_mutex_lock(&mutex_voitures);
-    for (int i = 0; i < nb_voitures; i++) {
-        if (voitures_list[i].id_voiture == v->id_voiture) {
-            for (int j = i; j < nb_voitures - 1; j++) {
-                voitures_list[j] = voitures_list[j + 1];
-            }
-            nb_voitures--;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&mutex_voitures);
-
-    free(v);
-    return NULL;
-}
-
-// Boucle interactive pour envoyer consignes/itinéraires
+/* === Boucle interactive === */
 void* boucle_interactive(void* arg) {
+    (void)arg;
     char cmd[32];
     int id;
 
     while (1) {
         printf("\nTapez 'consigne', 'itineraire', 'liste', ou 'fin' > ");
-        (void)fgets(cmd, sizeof(cmd), stdin);
-        cmd[strlen(cmd)-1] = '\0'; // supprimer le '\n'
-
-        if (strcmp(cmd, "fin") == 0) break;
+        if (!fgets(cmd, sizeof(cmd), stdin)) continue;  // ignore erreur
+        cmd[strcspn(cmd, "\n")] = '\0';  // supprimer le '\n'
 
         if (strcmp(cmd, "liste") == 0) {
-            pthread_mutex_lock(&mutex_voitures);
-            printf("Voitures connectées : ");
-            for (int i = 0; i < nb_voitures; i++) {
-                printf("%d ", voitures_list[i].id_voiture);
-            }
-            printf("\n");
-            pthread_mutex_unlock(&mutex_voitures);
+            afficher_voitures_connectees();
             continue;
         }
 
         printf("ID de la voiture > ");
-        (void)scanf("%d", &id);
-        getchar(); // consommer le '\n' restant
+        if (scanf("%d", &id) != 1) { getchar(); continue; }  // ignorer erreur
+        getchar(); // consommer '\n' restant
 
-        int sd = trouver_socket(id);
-        if (sd < 0) {
+        VoitureConnection* v = get_voiture_by_id(id);
+        if (!v) {
             printf("Voiture %d non connectée.\n", id);
+            continue;
+        }
+        int sd = v->sockfd;
+
+        if (strcmp(cmd, "fin") == 0) {
+            sendFin(sd);
+            deconnecter_voiture(v);
             continue;
         }
 
         if (strcmp(cmd, "consigne") == 0) {
-            Consigne c = {1, 2, AUTORISATION};  // exemple
+            Consigne c = {1, 2, AUTORISATION};
             sendMessage(sd, MESSAGE_CONSIGNE, &c);
-            printf("[Serveur] Consigne envoyée à la voiture %d\n", id);
+            INFO(TAG, "[Serveur] Consigne envoyée à la voiture %d\n", id);
         } 
         else if (strcmp(cmd, "itineraire") == 0) {
             Itineraire iti;
@@ -127,7 +75,9 @@ void* boucle_interactive(void* arg) {
     return NULL;
 }
 
+/* === Boucle principale de communication === */
 void* main_communication_controleur(void* arg) {
+    (void)arg;
     int se;
     struct sockaddr_in adrlect;
     CHECK_ERROR((se = socket(AF_INET, SOCK_STREAM, 0)), -1, "Erreur création socket");
@@ -141,7 +91,6 @@ void* main_communication_controleur(void* arg) {
 
     printf("[Serveur] En attente de connexion...\n");
 
-    // Thread pour la boucle interactive
     pthread_t tid_ui;
     pthread_create(&tid_ui, NULL, boucle_interactive, NULL);
 
@@ -149,16 +98,15 @@ void* main_communication_controleur(void* arg) {
         int client_sd = accept(se, NULL, NULL);
         CHECK_ERROR(client_sd, -1, "Erreur accept");
 
-        // Créer une structure pour cette voiture
         VoitureConnection* v = malloc(sizeof(VoitureConnection));
         if (!v) { close(client_sd); continue; }
 
         v->sockfd = client_sd;
-        v->id_voiture = nb_voitures + 1; // simple id pour l'exemple
+        v->id_voiture = nb_voitures + 1;
 
         pthread_mutex_lock(&mutex_voitures);
         if (nb_voitures < MAX_VOITURES) {
-            voitures_list[nb_voitures++] = *v;
+            voitures_list[nb_voitures++] = v;  // stocker le pointeur directement
         } else {
             printf("[Serveur] Nombre max de voitures atteint.\n");
             close(client_sd);

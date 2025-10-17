@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
 #include "logger.h"
 #include "config.h"
 #include "voiture_globals.h"
 #include "main_localisation.h"
 #include "main_module_exemple.h"
-#include "TCP_voiture.h"
+#include "messages.h"
+#include "communication_tcp.h"
 
 #define TAG "main"
 
@@ -34,9 +37,15 @@ int main(int argc, char *argv[]) {
     // Initialisation des variables globales
     init_voiture_globals();
     start_localisation("Démarrage de la localisation !\n");
-    main_communication_voiture(NULL);
-    
-    
+
+    pthread_t thread_1;
+
+    // Création du thread
+    if (pthread_create(&thread_1, NULL, initialisation_communication_voiture, NULL) != 0) {
+        perror("Erreur pthread_create");
+        return EXIT_FAILURE;
+    }
+
     exemple_module("Message du module d'exemple");
     
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
