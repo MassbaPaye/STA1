@@ -6,6 +6,9 @@
 #define TCP_PORT              5000
 #define CONTROLEUR_IP         "127.0.0.1"
 
+// === Configuration série de la voiture ===
+#define SERIAL_PORT_DEFAULT   "/dev/ttyUSB0"
+#define SERIAL_BAUDRATE       115200
 
 // === Paramètres système ===
 #define MAX_VOITURES 2 // Nombre de voiture maximal qui peuvent etre géré par le controleur

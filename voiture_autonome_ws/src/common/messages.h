@@ -110,7 +110,7 @@ typedef struct {
 */
 typedef struct {
     int id_structure;
-    ConsigneType autorisation; // AUTORISATION ou ATTENTE
+    ConsigneType autorisation; // CONSIGNE_AUTORISATION ou CONSIGNE_ATTENTE
 } Consigne;
 
 

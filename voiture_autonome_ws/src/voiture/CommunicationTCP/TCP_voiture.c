@@ -20,19 +20,42 @@
 int sockfd = -1;
 pthread_t tid_rcv = -1;
 
+ConnexionTCP connexion_tcp = {
+    .sockfd = -1,
+    .tid_rcv = 0,
+    .mutex = PTHREAD_MUTEX_INITIALIZER,
+    .voiture_connectee = false,
+    .stop_client = false
+};
+
 void* receive_thread(void* arg) {
-    
     MessageType type;
     char buffer[2048];
+
     while (1) {
+        pthread_mutex_lock(&connexion_tcp.mutex);
+        bool stop = connexion_tcp.stop_client;
+        int sock = connexion_tcp.sockfd;
+        pthread_mutex_unlock(&connexion_tcp.mutex);
+
+        if (stop || sock < 0) break;
+
         INFO(TAG, "avant recvMessage");
-        int nbytes = recvMessage(sockfd, &type, buffer);
+        int nbytes = recvMessage(sock, &type, buffer);
         INFO(TAG, "apres recvMessage");
+
         if (nbytes <= 0) {
             printf("[Client] Connexion fermée ou erreur.\n");
+
+            // Notifier le thread principal
+            pthread_mutex_lock(&connexion_tcp.mutex);
+            connexion_tcp.voiture_connectee = false;
+            pthread_mutex_unlock(&connexion_tcp.mutex);
+
             break;
         }
-        
+
+        // Traitement des messages (inchangé)
         switch (type) {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
@@ -44,19 +67,23 @@ void* receive_thread(void* arg) {
 
             case MESSAGE_ITINERAIRE: {
                 Itineraire* iti = (Itineraire*) buffer;
-                printf("[Client] Itinéraire reçu : %d points\n",
-                       iti->nb_points);
+                printf("[Client] Itinéraire reçu : %d points\n", iti->nb_points);
                 for (int i = 0; i < iti->nb_points; i++) {
                     printf("  Point %d: (%d,%d,%d) theta=%.2f\n",
                            i, iti->points[i].x, iti->points[i].y, iti->points[i].z, iti->points[i].theta);
                 }
-                free(iti->points); // Important : recvItineraire alloue dynamiquement
+                free(iti->points);
                 break;
             }
+
             case MESSAGE_FIN: {
                 printf("[Client] Reçu MESSAGE_FIN, fermeture.\n");
+                pthread_mutex_lock(&connexion_tcp.mutex);
+                connexion_tcp.voiture_connectee = false;
+                pthread_mutex_unlock(&connexion_tcp.mutex);
                 return NULL;
             }
+
             default:
                 printf("[Client] Message type %d ignoré.\n", type);
                 break;
@@ -65,6 +92,7 @@ void* receive_thread(void* arg) {
 
     return NULL;
 }
+
 
 static int recvBuffer(int sockfd, void* buffer, size_t size) {
     return recv(sockfd, buffer, size, 0);

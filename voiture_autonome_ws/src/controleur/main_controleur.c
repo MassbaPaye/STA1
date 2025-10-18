@@ -23,5 +23,6 @@ int main() {
     // Boucle principale (placeholder)
     INFO(TAG, "Le contrôleur est prêt à recevoir les connexions.");
     getchar();
+    
     return 0;
 }
