@@ -3,6 +3,8 @@
 #include "config.h"
 #include "messages.h"
 
+extern atomic_int voiture_connectee; 
+
 /* === Fonctions génériques === */
 int sendMessage(int sockfd, MessageType type, void* message);
 

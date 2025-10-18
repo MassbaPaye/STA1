@@ -59,7 +59,6 @@ int sendConsigne(int sockfd, const Consigne* cons) {
 }
 
 int sendItineraire(int sockfd, const Itineraire* iti) {
-    sendBuffer(sockfd, &iti->id_voiture, sizeof(int));
     sendBuffer(sockfd, &iti->nb_points, sizeof(int));
     return sendBuffer(sockfd, iti->points, iti->nb_points * sizeof(Point));
 }
@@ -133,14 +132,14 @@ void* receive_thread(void* arg) {
         switch(type) {
             case MESSAGE_POSITION: {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
-                printf("[Voiture %d] Position : (%d,%d,%d) theta=%.2f\n",
-                       pos->id_voiture, pos->x, pos->y, pos->z, pos->theta);
+                printf("[Voiture] Position : (%d,%d,%d) theta=%.2f\n",
+                       pos->x, pos->y, pos->z, pos->theta);
                 break;
             }
             case MESSAGE_DEMANDE: {
                 Demande* d = (Demande*) buffer;
-                printf("[Voiture %d] Demande : structure=%d type=%d dir=%c\n",
-                       d->id_voiture, d->structure_id, d->type_operation, d->direction);
+                printf("[Voiture] Demande : structure=%d type=%d dir=%c\n",
+                       d->structure_id, d->type_operation, d->direction);
                 break;
             }
             case MESSAGE_FIN: {

@@ -22,8 +22,8 @@ typedef enum {
 
 /* Enumération pour le type de consigne Controleur->Voiture (suite à une demande) */
 typedef enum {
-    AUTORISATION = 0,
-    ATTENTE = 1
+    CONSIGNE_AUTORISATION = 0,
+    CONSIGNE_ATTENTE = 1
 } ConsigneType;
 
 /* Enumération des types de panneaux */
@@ -65,7 +65,6 @@ typedef struct {
         ou le libération d'une structure auprès du controleur routier
 */
 typedef struct {
-    int id_voiture;
     int structure_id;
     int type_operation; // LIBERATION_STRUCTURE ou RESERVATION_STRUCTURE
     char direction; // ex: "n" ou "s"
@@ -80,7 +79,6 @@ typedef struct {
         et Gestion de comportement le libère
 */
 typedef struct {
-    int id_voiture;
     int nb_points;
     Point* points;
 } Itineraire;
@@ -95,7 +93,6 @@ typedef struct {
         planificateur d'itinéraire et l'utilisateur (via l'IHM) 
 */
 typedef struct {
-    int id_voiture;
     int x; // mm
     int y; // mm
     int z; // mm
@@ -112,7 +109,6 @@ typedef struct {
     Description : Permet au controleur routier de répondre à la demande d'une voiture
 */
 typedef struct {
-    int id_voiture;
     int id_structure;
     ConsigneType autorisation; // AUTORISATION ou ATTENTE
 } Consigne;
@@ -130,7 +126,6 @@ typedef struct {
         doit se garer.
 */
 typedef struct {
-    int id_voiture;
     int nb_points;
     Point points[MAX_POINTS_TRAJECTOIRE]; // Tableau des points absolus représentant la trajectoire que la voiture doit suivre
     float vitesse; // [mm/s] vitesse vers laquelle la voiture doit converger
@@ -192,7 +187,6 @@ typedef struct {
     Description : Permet d'afficher des erreurs sur l'interface utilisateur
 */
 typedef struct {
-    short id_voiture;
     int batterie;
     int status_code; // indique la présence d'une erreur
     char message[256]; // Message d'erreur

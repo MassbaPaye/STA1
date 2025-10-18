@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <time.h>
+#include <stdatomic.h>
 #include "logger.h"
 #include "config.h"
 #include "voiture_globals.h"
@@ -12,47 +14,43 @@
 
 #define TAG "main"
 
-int main(int argc, char *argv[]) {
-    #ifndef LOG_TO_FILE
-    printf("LOG_TO_FILE");
-    #else
-    printf("not LOG_TO_FILE");
-    #endif
+pthread_t thread_localisation;
+pthread_t thread_communication;
 
+
+int main(int argc, char *argv[]) {
     DBG(TAG, "Mode DEBUG activé");
-    INFO(TAG, "Initialisation du système");
-    if (argc < 2) {
-        ERR(TAG, "Usage : %s <ID_VOITURE>\n", argv[0]);
-        return 1;
-    }
-    int id_voiture = atoi(argv[1]);
-    if (id_voiture < 0 || id_voiture >= MAX_VOITURES) {
-        ERR(TAG, "Erreur : ID_VOITURE invalide (0-%d)\n", MAX_VOITURES - 1);
-        return 1;
-    }
-    INFO(TAG, "🚗 Démarrage du processus VOITURE #%d", id_voiture);
+    INFO(TAG, "🚗 Démarrage du processus VOITURE");
     INFO(TAG, "→ Port TCP : %d", TCP_PORT);
     INFO(TAG, "→ IP du contrôleur : %s", CONTROLEUR_IP);
     
     // Initialisation des variables globales
     init_voiture_globals();
-    start_localisation("Démarrage de la localisation !\n");
 
-    pthread_t thread_1;
-
-    // Création du thread
-    if (pthread_create(&thread_1, NULL, initialisation_communication_voiture, NULL) != 0) {
-        perror("Erreur pthread_create");
+    // Lancement de la localisation
+    if (pthread_create(&thread_localisation, NULL, start_localisation, "Démarrage de la localisation !\n") != 0) {
+        perror("Erreur pthread_create localisation");
         return EXIT_FAILURE;
     }
+
+    // Lancement de la communication TCP avec le contrôleur routier
+    if (pthread_create(&thread_communication, NULL, initialisation_communication_voiture, NULL) != 0) {
+        perror("Erreur pthread_create init communication");
+        return EXIT_FAILURE;
+    }
+    // Attente de la connexion
+    printf("En attente de la connexion avec le contrôleur...\n");
+    while (atomic_load(&voiture_connectee) == 0) {
+        sleep(1);
+    }
+    INFO(TAG, "Communication TCP établie\n");
+
+
 
     exemple_module("Message du module d'exemple");
     
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
-    
-    // Boucle principale (placeholder)
-    INFO(TAG, "La voiture %d est prête.\n", id_voiture);
+    INFO(TAG, "Processus VOITURE prêt. Appuyez sur une touche pour quitter...");
     getchar();
-
     return 0;
 }

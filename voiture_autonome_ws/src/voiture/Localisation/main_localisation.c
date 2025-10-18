@@ -3,8 +3,9 @@
 
 #define TAG "localisation"
 
-int start_localisation(char* message)
+void* start_localisation(void* message)
 {
-    INFO(TAG, "%s", message);
-    return 0;
+
+    INFO(TAG, "%s", (char*)message);
+    return NULL;
 }

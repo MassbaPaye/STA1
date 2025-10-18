@@ -2,10 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdatomic.h>
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "TCP_voiture.h"
 #include "communication_tcp.h"
+#include "logger.h"
+
+#define TAG "communication_tcp"
+
+atomic_int voiture_connectee = 0;
 
 /* --- Fonctions utilitaires internes --- */
 static int sendBuffer(int sockfd, const void* buffer, size_t size) {
@@ -62,22 +68,28 @@ void deconnecter_controleur(pthread_t* tid_reception, int* sockfd_ptr) {
 
 void* initialisation_communication_voiture(void* arg) {
     struct sockaddr_in serv_addr;
+    while (1) {
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0) { perror("Erreur création socket"); sleep(5); continue; }
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) { perror("Erreur création socket"); exit(1); }
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(TCP_PORT);
+        serv_addr.sin_addr.s_addr = inet_addr(CONTROLEUR_IP);
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(TCP_PORT);
-    serv_addr.sin_addr.s_addr = inet_addr(CONTROLEUR_IP);
+        if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+            perror("Erreur connexion");
+            close(sockfd);
+            sleep(5);
+            continue;
+        }
 
-    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Erreur connexion");
-        exit(1);
+        INFO(TAG, "[Client] Connecté au serveur\n");
+        atomic_store(&voiture_connectee, 1);
+
+        // Lancement du thread de réception
+        pthread_create(&tid_rcv, NULL, receive_thread, NULL);
+        break;
     }
-
-    printf("[Client] Connecté au serveur\n");
-
-    pthread_create(&tid_rcv, NULL, receive_thread, NULL);
 
     return NULL;
 }
