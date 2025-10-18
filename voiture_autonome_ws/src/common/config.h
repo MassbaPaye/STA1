@@ -6,10 +6,13 @@
 #define TCP_PORT              5000
 #define CONTROLEUR_IP         "127.0.0.1"
 
+
 // === Configuration des ports USB ===
+#define USE_MARVELMIND           1
 #define DEFAULT_MEGAPI_PORT      "/dev/ttyUSB0"
 #define DEFAULT_MARVELMIND_PORT  "/dev/ttyACM0"
 #define SERIAL_BAUDRATE          115200
+
 
 // === Paramètres système ===
 #define MAX_VOITURES 2 // Nombre de voiture maximal qui peuvent etre géré par le controleur

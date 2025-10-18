@@ -65,7 +65,6 @@ int main(int argc, char *argv[]) {
     exemple_module("Message du module d'exemple");
     
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
-    INFO(TAG, "Processus VOITURE prêt. Appuyez sur une touche pour quitter...");
     getchar();
     deconnecter_controleur();
     return 0;
