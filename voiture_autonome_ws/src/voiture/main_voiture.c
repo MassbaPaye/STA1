@@ -11,6 +11,7 @@
 #include "messages.h"
 #include "communication_tcp.h"
 #include "communication_serie.h"
+#include "utils.h"
 #include <bits/getopt_core.h> // pour éviter une erreur sur optarg 
 
 
@@ -20,19 +21,6 @@ pthread_t thread_localisation;
 pthread_t thread_communication_tcp;
 pthread_t thread_communication_serie;
 
-void gestion_arguments(int argc, char *argv[]) {
-    int opt;
-    while ((opt = getopt(argc, argv, "sp:")) != -1) {
-        switch (opt) {
-            case 'p':
-                serial_port = optarg; 
-                INFO(TAG, "Port série défini sur : %s", serial_port);
-                break;
-            default:
-                exit(EXIT_FAILURE);
-        }
-    }
-}
 
 int main(int argc, char *argv[]) {
     
