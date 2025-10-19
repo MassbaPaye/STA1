@@ -33,6 +33,7 @@ static MarvelmindPosition current_position = {0};
 
 static void *marvelmind_task(void *arg) {
     (void)arg;  // inutilisé
+    bool was_connected = true; // Pour afficher un warn au début s'il y a un echec de connexion
 
     while (running) {
         struct MarvelmindHedge *hedge = createMarvelmindHedge();
@@ -47,9 +48,9 @@ static void *marvelmind_task(void *arg) {
         hedge->terminationRequired = false;
 
         startMarvelmindHedge(hedge);
-
+        
         struct PositionValue pos = {0};
-
+        
         while (running && !hedge->terminationRequired) {
             if (getPositionFromMarvelmindHedge(hedge, &pos)) {
                 pthread_mutex_lock(&pos_mutex);
@@ -60,15 +61,25 @@ static void *marvelmind_task(void *arg) {
                 current_position.valid = true;
                 pthread_cond_broadcast(&pos_cond);
                 pthread_mutex_unlock(&pos_mutex);
+                // Reconnexion réussie
+                if (!was_connected) {
+                    INFO(TAG, "Marvelmind connecté sur %s", marvelmind_port);
+                    was_connected = true;
+                }
             } else {
+                 // Perte de connexion détectée
+                if (was_connected) {
+                    WARN(TAG, "Marvelmind perdu (%s), tentative de reconnexion toute les %d s", marvelmind_port, RECONNECT_DELAY_SEC);
+                    was_connected = false;
+                }
                 struct timespec ts;
                 ts.tv_sec = 0;
                 ts.tv_nsec = (int) 1/GET_POSITION_FREQ * 1e9; // 100 ms
                 nanosleep(&ts, NULL);
             }
         }
-
-        WARN(TAG, "Déconnexion du Marvelmind (%s).", marvelmind_port);
+        if (!running)
+            INFO(TAG, "Déconnexion du Marvelmind (%s).");
         stopMarvelmindHedge(hedge);
         destroyMarvelmindHedge(hedge);
         hedge = NULL;
@@ -78,7 +89,7 @@ static void *marvelmind_task(void *arg) {
         }
     }
 
-    INFO(TAG, "Thread Marvelmind terminé.");
+    DBG(TAG, "Thread Marvelmind terminé.");
     return NULL;
 }
 

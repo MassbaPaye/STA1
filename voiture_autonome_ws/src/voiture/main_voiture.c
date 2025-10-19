@@ -55,7 +55,6 @@ int main(int argc, char *argv[]) {
     // Attente de la connexion
     printf("En attente de la connexion avec le contrôleur...\n");
     while (!est_connectee()) {
-        printf(".");
         sleep(1);
     }
     INFO(TAG, "Communication TCP établie\n");
