@@ -1,17 +1,13 @@
 #include "logger.h"
 #include "communication_serie.h"
 #include "config.h"
+#include "utils.h"
 
 #define TAG "comm_serie"
 
-char* serial_port = SERIAL_PORT_DEFAULT;
 
 void* lancer_communication_serie(void* arg) {
-    char* port = (char*) arg;
-    if (port) {
-        serial_port = port;
-    }
-    INFO(TAG, "Initialisation de la communication série sur le port %s à %d bauds", serial_port, SERIAL_BAUDRATE);
+    INFO(TAG, "Initialisation de la communication série sur le port %s à %d bauds", megapi_port, SERIAL_BAUDRATE);
     return NULL;
 }
 

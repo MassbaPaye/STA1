@@ -1,2 +1,2 @@
 
-void* start_localisation(void* message);
+void* start_localisation();
