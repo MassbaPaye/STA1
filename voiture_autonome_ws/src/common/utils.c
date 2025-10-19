@@ -4,8 +4,8 @@
 #include <unistd.h> // pour getopt
 
 // Définition des variables globales
-char *megapi_port = DEFAULT_MARVELMIND_PORT;
-char *marvelmind_port = DEFAULT_MEGAPI_PORT;
+char *megapi_port = DEFAULT_MEGAPI_PORT;
+char *marvelmind_port = DEFAULT_MARVELMIND_PORT;
 
 void gestion_arguments(int argc, char *argv[]) {
     int opt;

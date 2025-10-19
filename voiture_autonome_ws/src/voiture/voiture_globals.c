@@ -1,6 +1,6 @@
 // Ce fichier contient uniquement les variables globales propres au processus "voiture". 
 // Aucune donnée n'est partagée avec le processus "controleur".
-
+#define _POSIX_C_SOURCE 199309L
 #include "voiture_globals.h"
 #include <time.h>
 #include "logger.h"
@@ -240,5 +240,33 @@ struct timespec get_donnees_detection_last_update(void) {
     pthread_mutex_lock(&g.donnees_detection.mutex);
     ts = g.donnees_detection.last_update;
     pthread_mutex_unlock(&g.donnees_detection.mutex);
+    return ts;
+}
+
+
+
+// SensorData
+int set_sensor_data(const SensorData* t, int blocking) {
+    if (check_initialized() != 0 || !t) return -1;
+    if (lock_mutex(&g.sensor_data.mutex, blocking) != 0) return -1;
+    g.sensor_data.data = *t;
+    clock_gettime(CLOCK_MONOTONIC, &g.sensor_data.last_update);
+    pthread_mutex_unlock(&g.sensor_data.mutex);
+    return 0;
+}
+
+int get_sensor_data(SensorData* t, int blocking) {
+    if (check_initialized() != 0 || !t) return -1;
+    if (lock_mutex(&g.sensor_data.mutex, blocking) != 0) return -1;
+    *t = g.sensor_data.data;
+    pthread_mutex_unlock(&g.sensor_data.mutex);
+    return 0;
+}
+
+struct timespec get_sensor_data_last_update(void) {
+    struct timespec ts = TIMESPEC_UNDEFINED;
+    pthread_mutex_lock(&g.sensor_data.mutex);
+    ts = g.sensor_data.last_update;
+    pthread_mutex_unlock(&g.sensor_data.mutex);
     return ts;
 }

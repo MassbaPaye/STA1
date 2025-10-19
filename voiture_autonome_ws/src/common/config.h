@@ -9,9 +9,9 @@
 
 // === Configuration des ports USB ===
 #define USE_MARVELMIND           1
-#define DEFAULT_MEGAPI_PORT      "/dev/ttyUSB0"
+#define DEFAULT_MEGAPI_PORT      "stdin"
 #define DEFAULT_MARVELMIND_PORT  "/dev/ttyACM0"
-#define SERIAL_BAUDRATE          115200
+#define MEGAPI_BAUDRATE          115200
 
 
 // === Paramètres système ===

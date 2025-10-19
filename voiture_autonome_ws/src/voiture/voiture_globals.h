@@ -47,6 +47,11 @@ int set_donnees_detection(const DonneesDetection* t, int blocking);
 int get_donnees_detection(DonneesDetection* t, int blocking);
 struct timespec get_donnees_detection_last_update(void);
 
+// SensorData
+int set_sensor_data(const SensorData* t, int blocking);
+int get_sensor_data(SensorData* t, int blocking);
+struct timespec get_sensor_data_last_update(void);
+
 void init_voiture_globals(void);
 
 
@@ -94,6 +99,12 @@ typedef struct {
     struct timespec last_update;
 } GlobalDonneesDetection;
 
+typedef struct {
+    pthread_mutex_t mutex;
+    SensorData data;
+    struct timespec last_update;
+} GlobalSensorData;
+
 /* ==== Instance unique de toutes les variables globales ==== */
 typedef struct {
     GlobalItineraire itineraire;
@@ -103,6 +114,7 @@ typedef struct {
     GlobalPosition position_voiture;
     GlobalTrajectoire trajectoire;
     GlobalDonneesDetection donnees_detection;
+    GlobalSensorData sensor_data;
 } GlobalsVoiture;
 extern GlobalsVoiture g;
 
