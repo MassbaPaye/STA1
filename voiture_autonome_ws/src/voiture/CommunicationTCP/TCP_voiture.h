@@ -12,7 +12,7 @@ extern pthread_t tid_rcv;      // thread qui gère cette connexion
 
 
 // Thread de réception des messages du contrôleur   
-void* receive_thread(void* arg);
+void* receive_thread();
 
 // Structure interne pour gérer la connexion
 typedef struct {

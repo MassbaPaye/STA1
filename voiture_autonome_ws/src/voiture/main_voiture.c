@@ -59,19 +59,23 @@ int main(int argc, char *argv[]) {
         sleep(1);
     }
     INFO(TAG, "Communication TCP établie\n");
-
+    
+    #ifdef SIMULATION
     // Lancement de la simulation
     if (pthread_create(&thread_simulation, NULL, lancer_simulateur, NULL) != 0) {
         perror("Erreur pthread_create lancement simulation");
         return EXIT_FAILURE;
     }
+    #endif
 
 
-
+    /* // code module exemple
     exemple_module("Message du module d'exemple");
-    
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
+    */
     getchar();
+    stop_communication_serie();
+    stop_localisation();
     deconnecter_controleur();
     return 0;
 }

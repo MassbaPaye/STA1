@@ -1,3 +1,4 @@
+#ifdef SIMULATION
 #define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #include "logger.h"
 
 #define TAG "simulateur"
+#define MARVELMIND_UPDATE_FREQ_HZ 2
 #define SIM_FREQ_HZ 10
 #define SIM_DT (1.0 / SIM_FREQ_HZ)
 
@@ -73,7 +75,7 @@ void* lancer_simulateur() {
         // 3️⃣ Simuler une mesure Marvelmind toutes les 2 s
         clock_gettime(CLOCK_MONOTONIC, &t_now);
         double t_now_s = t_now.tv_sec + t_now.tv_nsec / 1e9;
-        if (t_now_s - t_last_mm > 2.0) {
+        if (t_now_s - t_last_mm > 1.0/MARVELMIND_UPDATE_FREQ_HZ) {
             MarvelmindPosition mm = {
                 .x = (int)(x_real + (rand() % 80 - 40)),
                 .y = (int)(y_real + (rand() % 80 - 40)),
@@ -94,7 +96,7 @@ void* lancer_simulateur() {
         double t_s = (t_now.tv_sec + t_now.tv_nsec / 1e9) - t_start;
 
         // 6️⃣ Écriture dans le CSV
-        fprintf(f, "%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d\n",
+        fprintf(f, "%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d\n",
             t_s,
             x_real, y_real,
             pos_fusion.vx, pos_fusion.vy,
@@ -110,3 +112,5 @@ void* lancer_simulateur() {
     fclose(f);
     return NULL;
 }
+
+#endif

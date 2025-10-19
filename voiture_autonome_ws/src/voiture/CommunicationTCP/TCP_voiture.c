@@ -28,7 +28,7 @@ ConnexionTCP connexion_tcp = {
     .stop_client = false
 };
 
-void* receive_thread(void* arg) {
+void* receive_thread() {
     MessageType type;
     char buffer[2048];
 
@@ -40,9 +40,7 @@ void* receive_thread(void* arg) {
 
         if (stop || sock < 0) break;
 
-        INFO(TAG, "avant recvMessage");
         int nbytes = recvMessage(sock, &type, buffer);
-        INFO(TAG, "apres recvMessage");
 
         if (nbytes <= 0) {
             printf("[Client] Connexion fermée ou erreur.\n");
@@ -120,7 +118,6 @@ int recvFin(int sockfd, char* buffer, size_t max_size) {
 
 int recvMessage(int sockfd, MessageType* type, void* message) {
     // lire le type
-    INFO(TAG, "avant rcvbuffer");
     int n = recvBuffer(sockfd, type, sizeof(MessageType));
     if (n <= 0) {
         perror("Erreur recvBuffer");

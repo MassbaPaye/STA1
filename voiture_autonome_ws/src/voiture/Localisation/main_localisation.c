@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "main_localisation.h"
 #include "logger.h"
 #include "marvelmind_manager.h"
@@ -17,6 +18,7 @@
 #define LOCALISATION_FREQ_HZ 10
 #define LOCALISATION_DT (1.0 / LOCALISATION_FREQ_HZ)
 
+bool running = false;
 PositionVoiture pos_globale = {0};
 PositionOdom odom_pos_estimee = {0};
 MarvelmindPosition mm_pos_estimee = {0};
@@ -54,6 +56,7 @@ void update_localisation_ponderation()
 
 
 void* lancer_localisation_thread() {
+    running = true;
 
     INFO(TAG, "Thread de localisation démarré.");
 
@@ -67,8 +70,8 @@ void* lancer_localisation_thread() {
         WARN(TAG, "Marvelmind désactivé (USE_MARVELMIND=0).");
     }
 
-    while(1) {       
-        #ifdef DEBUG 
+    while(running) {       
+        #ifdef DEBUG_LOC
         struct timespec t_before, t_after;
         clock_gettime(CLOCK_MONOTONIC, &t_before);
         update_localisation_ponderation();
@@ -84,4 +87,8 @@ void* lancer_localisation_thread() {
 
     INFO(TAG, "Thread de localisation terminé.");
     return NULL;
+}
+
+void stop_localisation() {
+    running = false;
 }
