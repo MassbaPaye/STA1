@@ -57,8 +57,8 @@ static void* thread_read(void* arg) {
     return NULL;
 }
 
-void* lancer_communication_serie(void* arg) {
-    (void) arg;
+void* lancer_communication_serie() {
+    
     if (strcmp(megapi_port, "stdin") == 0) {
         fd_serial = 0;
     } else {
@@ -75,10 +75,9 @@ void* lancer_communication_serie(void* arg) {
     return NULL;
 }
 
-void* stop_communication_serie(void* arg) {
+void stop_communication_serie() {
     if (fd_serial > 0) close(fd_serial);
     // Ajouter un arret propre de tout
-    return NULL;
 }
 
 void envoyer_consigne_moteur(int consigneD, int consigneG) {

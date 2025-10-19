@@ -5,9 +5,9 @@
 #include <time.h>
 
 typedef struct {
-    int x;
-    int y;
-    int z;
+    float x;
+    float y;
+    float z;
     struct timespec t;
     bool valid;
 } MarvelmindPosition;
@@ -24,5 +24,6 @@ int wait_for_position(int timeout_sec);
 
 // Renvoie la dernière position enregistrée 
 MarvelmindPosition get_marvelmind_position();
+void _set_marvelmind_position(MarvelmindPosition pos);
 
 #endif // MARVELMIND_MANAGER_H

@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+#define PI 3.141592653589793
 
 // Déclaration des variables globales pour les ports
 extern char *megapi_port;
@@ -10,5 +13,8 @@ extern char *marvelmind_port;
 
 // Fonction pour gérer les arguments
 void gestion_arguments(int argc, char *argv[]);
+
+double timespec_diff_s(struct timespec t1, struct timespec t2);
+void my_sleep(double t_s);
 
 #endif // UTILS_H

@@ -93,9 +93,9 @@ typedef struct {
         planificateur d'itinéraire et l'utilisateur (via l'IHM) 
 */
 typedef struct {
-    int x; // mm
-    int y; // mm
-    int z; // mm
+    float x; // mm
+    float y; // mm
+    float z; // mm
     float theta; // degrés
     float vx; // mm/s
     float vy; // mm/s
