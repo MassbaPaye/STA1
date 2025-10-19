@@ -12,7 +12,6 @@
 #include "communication_tcp.h"
 #include "communication_serie.h"
 #include "utils.h"
-#include <bits/getopt_core.h> // pour éviter une erreur sur optarg 
 
 
 #define TAG "main"
@@ -36,20 +35,20 @@ int main(int argc, char *argv[]) {
     init_voiture_globals();
 
     // Lancement de la localisation
-    if (pthread_create(&thread_localisation, NULL, start_localisation, "Démarrage de la localisation !\n") != 0) {
+    if (pthread_create(&thread_localisation, NULL, start_localisation, NULL) != 0) {
         perror("Erreur pthread_create localisation");
         return EXIT_FAILURE;
     }
 
-    // Lancement de la communication TCP avec le contrôleur routier
+    // Lancement de la communication TCP avec le contrôleur
     if (pthread_create(&thread_communication_tcp, NULL, initialisation_communication_voiture, NULL) != 0) {
-        perror("Erreur pthread_create init communication");
+        perror("Erreur pthread_create init communication tcp");
         return EXIT_FAILURE;
     }
 
     // Lancement de la communication Série avec le MegaPi
     if (pthread_create(&thread_communication_serie, NULL, lancer_communication_serie, NULL) != 0) {
-        perror("Erreur pthread_create init communication");
+        perror("Erreur pthread_create lancer communication serie");
         return EXIT_FAILURE;
     }
     // Attente de la connexion

@@ -58,7 +58,7 @@ typedef struct {
 
 // === MESSAGES COMMUNIQUES PAR TCP ===
 
-/*  Message TCP : Demande 
+/*  Message TCP C/V : Demande 
     Tache émetrice : Gestion de comportement
     Tache réceptrice : Controleur routier
     Description : Permet à une voiture de formuler une demande de réservation
@@ -71,7 +71,7 @@ typedef struct {
 } Demande;
 
 
-/*  Message TCP : Itinéraire 
+/*  Message TCP C/V : Itinéraire 
     Tache émetrice : Planificateur d'itinéraire
     Tache réceptrice : Gestion de comportement
     Description : Sert à communiquer à une voiture l'itinéraire qu'elle doit suivre.
@@ -86,7 +86,7 @@ typedef struct {
 // Certains champs seront peut-etre ajoutés (ex: position de parking, nécessité de se garer)
 
 
-/*  Message TCP : PositionVoiture 
+/*  Message TCP C/V : PositionVoiture 
     Tache émetrice : Localisation
     Tache réceptrice : Planificateur d'itinéraire + IHM
     Description : Permet aux voiture de partager leur position + vitesse au
@@ -103,7 +103,7 @@ typedef struct {
 } PositionVoiture;
 
 
-/*  Message TCP : Consigne 
+/*  Message TCP C/V : Consigne 
     Tache émetrice : Controleur routier
     Tache réceptrice : Gestion de comportement
     Description : Permet au controleur routier de répondre à la demande d'une voiture
@@ -133,17 +133,8 @@ typedef struct {
     bool arreter_fin; // Indique si la voiture doit conserver sa vitesse ou si elle doit prévoir de l'arreter  
 } Trajectoire;
 
-// Note : Pour l'IA (Obstacle, Panneau, MarquageSol) est-ce qu'on fait un autre processus ? 
 
-/*  A définir : Obstacle 
-    Tache émetrice/ecrivaine : Detection Environnement
-    Tache réceptrice/lectrice : Gestion de comportement
-    Description : Signal un obstacle sur la chaussée
-*/
-
-/*  A définir : Obstacle 
-    Tache émetrice/ecrivaine : Detection Environnement
-    Tache réceptrice/lectrice : Gestion de comportement
+/*  Type Utilitaire : Panneau 
     Description : Indique la présence d'un panneau sur la voie
 */
 typedef struct {
@@ -151,6 +142,9 @@ typedef struct {
     PanneauType type;
 } Panneau;
 
+/*  Type Utilitaire : Obstacle 
+    Description : Indique la présence d'un obstcale sur la voie
+*/
 typedef struct {
     int distance;
     ObstacleType type;
@@ -158,11 +152,9 @@ typedef struct {
     Point pointg;
 } Obstacle;
 
-/*  A définir : MarquageSol 
-    Tache émetrice/ecrivaine : Detection Environnement
-    Tache réceptrice/lectrice : Gestion de comportement
+/*  Type Utilitaire : MarquageSol 
     Description : Position des lignes de marquage au sol sur la route
-    /!\ Mémoire : 
+    /!\ Mémoire : Il faut libérer les lignes de point
 */
 typedef struct {
     int nb_points_gauche;
@@ -171,17 +163,34 @@ typedef struct {
     Point ligne_droite[MAX_POINTS_MARQUAGE];
 } MarquageSol;
 
+/*  Message TCP IA/V : DonneesDetection 
+    Tache émetrice/ecrivaine : Detection Environnement
+    Tache réceptrice/lectrice : Gestion de comportement
+    Description : Message envoyé par l'IA de la voiture au processus voiture informant 
+        d'un eventuel obstacle, de la position du marquage au sol et des panneaux présents. 
+    /!\ Mémoire : Il faut libérer les lignes de point dans marquage_sol
+*/
 typedef struct {
     bool obstacle_present;
     Obstacle obstacle;
     int nb_panneaux;
     Panneau panneaux[MAX_PANNEAUX_SIMULTANES];
+    MarquageSol marquage_sol;
 } DonneesDetection;
+
+
+typedef struct {
+    int overrun;
+    float ref1, ref2;
+    float speed1, speed2;
+    float angle;
+    float vfiltre1, vfiltre2;
+} SensorData;
 
 
 // Annexe : Messages pas utiles pour le moment
 
-/*  Message TCP : EtatVoiture 
+/*  Message TCP IA/V : EtatVoiture 
     Tache émetrice : Gestion de comportement
     Tache réceptrice : IHM
     Description : Permet d'afficher des erreurs sur l'interface utilisateur
