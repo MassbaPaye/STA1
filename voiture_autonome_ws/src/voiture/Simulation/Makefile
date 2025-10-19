@@ -1,16 +1,13 @@
 # ==============================
-# Makefile module : Localisation
+# Makefile module : Simulation
 # ==============================
-
-# BUILD_DIR est le chemin absolue vers le dossier de build, typiquement ws/build/voiture/Localisation/
-# INCLUDES contient les arguments -I<path> des dossiers src/tools/*/, src/common/, src/voiture/ et src/voiture/*/
 
 CC := gcc
 
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)  # Possibilité d'ajouter des flags (-lm, -pthread par exemple)
-SRC := marvelmind.c marvelmind_manager.c localisation_fusion.c main_localisation.c # A modifier lorsqu'on ajoute des fichiers de code
+SRC := simulation_loc.c # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)
@@ -21,4 +18,4 @@ all: $(OBJS)
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@) 
 	$(CC) $(ARGS) -c $< -o $@ 
-	@echo "✅ Module Localisation : $@ compilé"
+	@echo "✅ Module Simulation : $@ compilé"

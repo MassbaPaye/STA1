@@ -54,9 +54,9 @@ static void *marvelmind_task(void *arg) {
         while (running && !hedge->terminationRequired) {
             if (getPositionFromMarvelmindHedge(hedge, &pos)) {
                 pthread_mutex_lock(&pos_mutex);
-                current_position.x = pos.x;
-                current_position.y = pos.y;
-                current_position.z = pos.z;
+                current_position.x = (float) pos.x;
+                current_position.y = (float) pos.y;
+                current_position.z = (float) pos.z;
                 clock_gettime(CLOCK_REALTIME, &current_position.t);
                 current_position.valid = true;
                 pthread_cond_broadcast(&pos_cond);
@@ -159,4 +159,10 @@ MarvelmindPosition get_marvelmind_position() {
     MarvelmindPosition pos_copy = current_position;
     pthread_mutex_unlock(&pos_mutex);
     return pos_copy;
+}
+
+void _set_marvelmind_position(MarvelmindPosition pos) {
+    pthread_mutex_lock(&pos_mutex);
+    current_position = pos;
+    pthread_mutex_unlock(&pos_mutex);
 }

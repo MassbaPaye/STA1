@@ -11,6 +11,7 @@
 #include "messages.h"
 #include "communication_tcp.h"
 #include "communication_serie.h"
+#include "simulation_loc.h"
 #include "utils.h"
 
 
@@ -19,6 +20,7 @@
 pthread_t thread_localisation;
 pthread_t thread_communication_tcp;
 pthread_t thread_communication_serie;
+pthread_t thread_simulation;
 
 
 int main(int argc, char *argv[]) {
@@ -35,7 +37,7 @@ int main(int argc, char *argv[]) {
     init_voiture_globals();
 
     // Lancement de la localisation
-    if (pthread_create(&thread_localisation, NULL, start_localisation, NULL) != 0) {
+    if (pthread_create(&thread_localisation, NULL, lancer_localisation_thread, NULL) != 0) {
         perror("Erreur pthread_create localisation");
         return EXIT_FAILURE;
     }
@@ -57,6 +59,12 @@ int main(int argc, char *argv[]) {
         sleep(1);
     }
     INFO(TAG, "Communication TCP établie\n");
+
+    // Lancement de la simulation
+    if (pthread_create(&thread_simulation, NULL, lancer_simulateur, NULL) != 0) {
+        perror("Erreur pthread_create lancement simulation");
+        return EXIT_FAILURE;
+    }
 
 
 

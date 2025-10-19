@@ -24,5 +24,12 @@
 #define MAX_POINTS_MARQUAGE 64
 #define MAX_PANNEAUX_SIMULTANES 5
 
+// === Parametre géométriques de la voiture ===
+#define RAYON_ROUE 30.0 // mm
+#define ECARTEMENT_ROUE 150 // mm
+
+// === Coefficients de fusion de données de localisation ===
+#define FUSION_ODO_ALPHA 0.5   // Pondération de l'historique de la position marvelmind lors d'un nouvelle position
+#define FUSION_POSITION_GLOBALE_WEIGHT 0.8  // Pondération odométrie dans la fusion avec les données marvelmind
 
 #endif

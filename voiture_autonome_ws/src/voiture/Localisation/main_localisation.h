@@ -1,2 +1,2 @@
 
-void* start_localisation();
+void* lancer_localisation_thread();
