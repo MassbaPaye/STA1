@@ -9,6 +9,8 @@
 #include "main_module_exemple.h"
 #include "messages.h"
 #include "communication_tcp.h"
+#include <signal.h>
+#include <sys/time.h>
 
 #define TAG "main"
 
