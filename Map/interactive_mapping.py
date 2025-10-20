@@ -1,6 +1,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk, ImageDraw
 import math
+import csv, datetime
 import os
 
 # --- CONFIG ---
@@ -42,7 +43,8 @@ class MapEditor:
         self.master.bind("<Return>", self.create_segment_or_arc)
         self.master.bind("s", self.save_image)
         self.master.bind("<Delete>", self.delete_selected_points)
-        
+        self.master.bind("g", lambda e: self.save_graph_unified_csv())
+
         self.update_canvas()
     
     # --- UTILS ---
@@ -284,6 +286,83 @@ class MapEditor:
     def save_image(self, event=None):
         self.img_draw.save(SAVE_PATH)
         print(f"[INFO] Image sauvegardée : {SAVE_PATH}")
+
+    def save_graph_unified_csv(self, folder="graph_unified"):
+        os.makedirs(folder, exist_ok=True)
+        print(f"[INFO] Exporting unified graph to {folder} ...")
+
+        # 1. Sauvegarde des noeuds
+        with open(os.path.join(folder, "nodes.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "x", "y"])
+            for i, (x, y) in enumerate(self.points):
+                w.writerow([i, float(x), float(y)])
+
+        # 2. Liste unifiée des arcs
+        arcs = []
+
+        # Segments -> arcs infinis
+        for (u, v) in self.lines:
+            x1, y1 = self.points[u]
+            x2, y2 = self.points[v]
+            length = math.hypot(x2-x1, y2-y1)
+            arcs.append((u, v, float("inf"), length, None, None))
+
+        # Arcs courbes
+        for (a, c, signed_r) in self.arcs:
+            p1 = self.points[a]
+            p2 = self.points[c]
+            dx, dy = p2[0]-p1[0], p2[1]-p1[1]
+            d = math.hypot(dx, dy)
+            if abs(signed_r) < d/2: continue
+            mx, my = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
+            h = math.sqrt(max(0, signed_r**2 - (d/2)**2))
+            ux, uy = -dy/d*h, dx/d*h
+            if signed_r < 0: ux, uy = -ux, -uy
+            cx, cy = mx+ux, my+uy
+            ang1 = math.atan2(p1[1]-cy, p1[0]-cx)
+            ang2 = math.atan2(p2[1]-cy, p2[0]-cx)
+            dtheta = ang2 - ang1
+            if signed_r >= 0 and dtheta < 0: dtheta += 2*math.pi
+            if signed_r < 0 and dtheta > 0: dtheta -= 2*math.pi
+            length = abs(signed_r * dtheta)
+            arcs.append((a, c, signed_r, length, cx, cy))
+
+        # Cercles complets -> arcs entre nœuds sur le cercle
+        for (cx, cy, r) in self.circles:
+            node_indices = []
+            for i, (x, y) in enumerate(self.points):
+                if abs(math.hypot(x-cx, y-cy) - r) < 5:  # tolérance pixels
+                    node_indices.append((i, math.atan2(y-cy, x-cx)))
+            if len(node_indices) < 2:
+                continue
+            node_indices.sort(key=lambda t: t[1])  # tri CCW
+            for k in range(len(node_indices)):
+                u = node_indices[k][0]
+                v = node_indices[(k+1) % len(node_indices)][0]
+                # longueur d'un arc du cercle (portion)
+                ang_u = node_indices[k][1]
+                ang_v = node_indices[(k+1) % len(node_indices)][1]
+                dtheta = ang_v - ang_u
+                if dtheta < 0: dtheta += 2*math.pi
+                length = abs(r * dtheta)
+                arcs.append((u, v, r, length, cx, cy))
+
+        # 3. Écriture dans arcs.csv
+        with open(os.path.join(folder, "arcs.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "u", "v", "radius", "length", "cx", "cy"])
+            for i, (u, v, r, length, cx, cy) in enumerate(arcs):
+                w.writerow([
+                    i, u, v,
+                    "inf" if math.isinf(r) else round(r, 3),
+                    round(length, 3),
+                    "" if cx is None else round(cx, 3),
+                    "" if cy is None else round(cy, 3)
+                ])
+
+        print(f"[INFO] Unified graph exported: {len(arcs)} arcs, {len(self.points)} nodes.")
+
 
 if __name__=="__main__":
     root = tk.Tk()
