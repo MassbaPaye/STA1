@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <pthread.h>
 #include <time.h>

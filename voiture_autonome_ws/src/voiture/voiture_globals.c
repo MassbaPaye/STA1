@@ -1,6 +1,6 @@
 // Ce fichier contient uniquement les variables globales propres au processus "voiture". 
 // Aucune donnée n'est partagée avec le processus "controleur".
-#define _POSIX_C_SOURCE 199309L
+#include "utils.h"
 #include "voiture_globals.h"
 #include <time.h>
 #include "logger.h"

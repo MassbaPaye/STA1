@@ -10,7 +10,7 @@ CC := gcc
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)     # Possibilité d'ajouter des flags (-Wall -O2 -lm -pthread par défaut)
-SRC := TCP_voiture.c communication_tcp.c      # A modifier lorsqu'on ajoute des fichiers de code
+SRC := TCP_voiture.c communication_tcp_voiture.c      # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)

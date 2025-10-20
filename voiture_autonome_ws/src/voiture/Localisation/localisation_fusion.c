@@ -1,8 +1,8 @@
-#define _POSIX_C_SOURCE 199309L
+
+#include "utils.h"
 #include "localisation_fusion.h"
 #include "logger.h"
 #include "config.h"
-#include "utils.h"
 #include <math.h>
 
 #define TAG "loc-fusion"

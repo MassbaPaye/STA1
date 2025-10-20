@@ -1,4 +1,5 @@
-#define _POSIX_C_SOURCE 199309L
+
+#include "utils.h"
 #include <unistd.h>
 #include "marvelmind_manager.h"
 #include "utils.h"

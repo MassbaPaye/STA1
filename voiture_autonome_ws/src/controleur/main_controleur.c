@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include "config.h"
 #include "logger.h"
+#include "communication_tcp_controleur.h"
 #include "controleur_globals.h"
 #include "queue.h"
-#include "communication_tcp.h"
 
 #define TAG "main"
 
@@ -19,7 +19,7 @@ int main() {
     init_controleur_globals();
 
     pthread_t thread_1;
-
+    
     // Création du thread
     if (pthread_create(&thread_1, NULL, initialisation_communication_controleur, NULL) != 0) {
         perror("Erreur pthread_create");

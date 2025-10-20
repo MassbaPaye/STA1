@@ -12,5 +12,5 @@ int sendDemande(int sockfd, const Demande* dem);
 int sendFin(int sockfd);
 
 void deconnecter_controleur();
-void* initialisation_communication_voiture();
+void* initialisation_communication_voiture(void* arg);
 bool est_connectee();

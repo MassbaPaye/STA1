@@ -5,11 +5,20 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "messages.h"
-#include "communication_tcp.h"
+#include "communication_tcp_controleur.h"
 #include "TCP_controleur.h"
 
 #define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
+
+void* test_thread(void* arg) {
+    (void)arg;
+    while (1) {
+        afficher_voitures_connectees();
+        sleep(10);
+    }
+    return NULL;
+}
 
 /* === Communication bas niveau === */
 static int sendBuffer(int Id, const void* buffer, size_t size) {
@@ -64,7 +73,8 @@ void afficher_voitures_connectees() {
 }
 
 /* === Boucle principale de communication === */
-void* initialisation_communication_controleur() {
+void* initialisation_communication_controleur(void* arg) {
+    (void)arg;
     int se;
     struct sockaddr_in adrlect;
     CHECK_ERROR((se = socket(AF_INET, SOCK_STREAM, 0)), -1, "Erreur création socket");
