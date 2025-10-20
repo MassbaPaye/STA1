@@ -12,13 +12,145 @@
 #include <arpa/inet.h>
 #include "TCP_controleur.h"
 #include "messages.h"
-#include "communication_tcp.h"
 #include "logger.h"
 
-#define TAG "TCP_controleur"
-#define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
+/* --- Mutex global --- */
+pthread_mutex_t mutex_voitures = PTHREAD_MUTEX_INITIALIZER;
 
+/* --- Tableau global de pointeurs et compteur --- */
+VoitureConnection* voitures_list[MAX_VOITURES];
+int nb_voitures = 0;
+
+/* === Fonctions utilitaires === */
+
+/* --- Récupère un pointeur vers la structure VoitureConnection par son ID --- */
+VoitureConnection* get_voiture_by_id(int id_voiture) {
+    VoitureConnection* v = NULL;
+    pthread_mutex_lock(&mutex_voitures);
+    for (int i = 0; i < nb_voitures; i++) {
+        if (voitures_list[i]->id_voiture == id_voiture) {
+            v = voitures_list[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutex_voitures);
+    return v;
+}
+
+/* --- Récupère un pointeur vers la structure VoitureConnection par sa socket --- */
+VoitureConnection* get_voiture_by_sockfd(int sockfd) {
+    VoitureConnection* v = NULL;
+    pthread_mutex_lock(&mutex_voitures);
+    for (int i = 0; i < nb_voitures; i++) {
+        if (voitures_list[i]->sockfd == sockfd) {
+            v = voitures_list[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutex_voitures);
+    return v;
+}
+
+static int recvBuffer(int sockfd, void* buffer, size_t size) {
+    return recv(sockfd, buffer, size, 0);
+}
+
+int recvPositionVoiture(int sockfd, PositionVoiture* pos) {
+    return recvBuffer(sockfd, pos, sizeof(PositionVoiture));
+}
+
+int recvDemande(int sockfd, Demande* dem) {
+    return recvBuffer(sockfd, dem, sizeof(Demande));
+}
+
+int recvFin(int sockfd, char* buffer, size_t max_size) {
+    int n = recvBuffer(sockfd, buffer, max_size);
+    if (n <= 0) return n;
+    buffer[max_size - 1] = '\0'; // sécurité
+    return n;
+}
+
+int recvMessage(int sockfd, MessageType* type, void* message) {
+    if (recvBuffer(sockfd, type, sizeof(MessageType)) <= 0) return -1;
+
+    switch (*type) {
+        case MESSAGE_POSITION:    return recvPositionVoiture(sockfd, (PositionVoiture*)message);
+        case MESSAGE_DEMANDE:     return recvDemande(sockfd, (Demande*)message);
+        case MESSAGE_FIN:         return recvFin(sockfd, (char*)message, 2048);
+        default:                  return -1;
+    }
+}
+
+// Thread pour chaque voiture : réception des messages
+void* receive_thread(void* arg) {
+    VoitureConnection* v = (VoitureConnection*) arg;
+    MessageType type;
+    char buffer[2048]; // pour MESSAGE_FIN si besoin
+
+    printf("[Serveur] Thread de la voiture %d démarré.\n", v->id_voiture);
+
+    while (1) {
+        int nbytes = recvMessage(v->sockfd, &type, buffer);
+        if (nbytes <= 0) {
+            printf("[Serveur] Connexion voiture %d fermée (recv erreur).\n", v->id_voiture);
+            break;
+        }
+
+        switch(type) {
+            case MESSAGE_POSITION: {
+                PositionVoiture* pos = (PositionVoiture*) buffer;
+                printf("[Voiture %d] Position : (%d,%d,%d) theta=%.2f\n",
+                       pos->id_voiture, pos->x, pos->y, pos->z, pos->theta);
+                break;
+            }
+            case MESSAGE_DEMANDE: {
+                Demande* d = (Demande*) buffer;
+                printf("[Voiture %d] Demande : structure=%d type=%d dir=%c\n",
+                       d->id_voiture, d->structure_id, d->type_operation, d->direction);
+                break;
+            }
+            case MESSAGE_FIN: {
+                printf("[Voiture %d] a envoyé MESSAGE_FIN : %s\n", v->id_voiture, buffer);
+                goto fin_connexion; // sortir de la boucle et nettoyer
+            }
+            default:
+                printf("[Voiture %d] Message type %d ignoré.\n", v->id_voiture, type);
+                break;
+        }
+    }
+
+fin_connexion:
+    // nettoyage
+    deconnecter_voiture(v);
+
+    return NULL;
+}
+
+// Déconnecte une voiture (ferme socket, enlève de la liste, libère mémoire)
+void deconnecter_voiture(VoitureConnection* v) {
+    if (!v) return;
+
+    printf("[Serveur] Déconnexion de la voiture %d...\n", v->id_voiture);
+
+    close(v->sockfd);
+
+    pthread_mutex_lock(&mutex_voitures);
+    for (int i = 0; i < nb_voitures; i++) {
+        if (voitures_list[i] == v) {
+            for (int j = i; j < nb_voitures - 1; j++) {
+                voitures_list[j] = voitures_list[j + 1];
+            }
+            nb_voitures--;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutex_voitures);
+
+    free(v);
+}
+/*
 /* === Boucle interactive === */
+/*
 void* boucle_interactive(void* arg) {
     (void)arg;
     char cmd[32];
@@ -74,54 +206,4 @@ void* boucle_interactive(void* arg) {
 
     return NULL;
 }
-
-/* === Boucle principale de communication === */
-void* main_communication_controleur(void* arg) {
-    (void)arg;
-    int se;
-    struct sockaddr_in adrlect;
-    CHECK_ERROR((se = socket(AF_INET, SOCK_STREAM, 0)), -1, "Erreur création socket");
-
-    adrlect.sin_family = AF_INET;
-    adrlect.sin_port = htons(TCP_PORT);
-    adrlect.sin_addr.s_addr = INADDR_ANY;
-
-    CHECK_ERROR(bind(se, (struct sockaddr*)&adrlect, sizeof(adrlect)), -1, "Erreur bind");
-    listen(se, 8);
-
-    printf("[Serveur] En attente de connexion...\n");
-
-    pthread_t tid_ui;
-    pthread_create(&tid_ui, NULL, boucle_interactive, NULL);
-
-    while (1) {
-        int client_sd = accept(se, NULL, NULL);
-        CHECK_ERROR(client_sd, -1, "Erreur accept");
-
-        VoitureConnection* v = malloc(sizeof(VoitureConnection));
-        if (!v) { close(client_sd); continue; }
-
-        v->sockfd = client_sd;
-        v->id_voiture = nb_voitures + 1;
-
-        pthread_mutex_lock(&mutex_voitures);
-        if (nb_voitures < MAX_VOITURES) {
-            voitures_list[nb_voitures++] = v;  // stocker le pointeur directement
-        } else {
-            printf("[Serveur] Nombre max de voitures atteint.\n");
-            close(client_sd);
-            free(v);
-            pthread_mutex_unlock(&mutex_voitures);
-            continue;
-        }
-        pthread_mutex_unlock(&mutex_voitures);
-
-        pthread_create(&v->tid, NULL, receive_thread, v);
-
-        printf("[Serveur] Nouvelle voiture connectée, id=%d\n", v->id_voiture);
-    }
-
-    close(se);
-    pthread_join(tid_ui, NULL);
-    return NULL;
-}
+*/

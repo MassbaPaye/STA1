@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "config.h"
 #include "logger.h"
 #include "controleur_globals.h"
 #include "queue.h"
-#include "TCP_controleur.h"
+#include "communication_tcp.h"
 
 #define TAG "main"
 
@@ -16,7 +17,15 @@ int main() {
 
     // Initialisation des variables globales
     init_controleur_globals();
-    main_communication_controleur(NULL);
+
+    pthread_t thread_1;
+
+    // Création du thread
+    if (pthread_create(&thread_1, NULL, initialisation_communication_controleur, NULL) != 0) {
+        perror("Erreur pthread_create");
+        return EXIT_FAILURE;
+    }
+
     // Exemple : afficher la taille de la queue
     INFO(TAG, "→ Taille initiale de la queue de demandes : %d", size_demande_queue());
 
