@@ -184,13 +184,12 @@ void* boucle_interactive(void* arg) {
         }
 
         if (strcmp(cmd, "consigne") == 0) {
-            Consigne c = {1, 2, AUTORISATION};
+            Consigne c = {2, CONSIGNE_AUTORISATION};
             sendMessage(sd, MESSAGE_CONSIGNE, &c);
             INFO(TAG, "[Serveur] Consigne envoyée à la voiture %d\n", id);
         } 
         else if (strcmp(cmd, "itineraire") == 0) {
             Itineraire iti;
-            iti.id_voiture = id;
             iti.nb_points = 2;
             iti.points = malloc(sizeof(Point) * iti.nb_points);
             iti.points[0] = (Point){0,0,0,0};

@@ -2,10 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdatomic.h>
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "TCP_voiture.h"
 #include "communication_tcp.h"
+#include "logger.h"
+
+#define TAG "communication_tcp"
+
+atomic_int voiture_connectee = 0;
 
 /* --- Fonctions utilitaires internes --- */
 static int sendBuffer(int sockfd, const void* buffer, size_t size) {
@@ -43,41 +49,90 @@ int sendMessage(int sockfd, MessageType type, void* message) {
 }
 
 // Déconnecte proprement le client voiture du contrôleur
-void deconnecter_controleur(pthread_t* tid_reception, int* sockfd_ptr) {
-    if (!sockfd_ptr) return;
+void deconnecter_controleur() {
+    pthread_mutex_lock(&connexion_tcp.mutex);
+    connexion_tcp.stop_client = true;
+    connexion_tcp.voiture_connectee = false;
 
-    int sockfd_local = *sockfd_ptr;
+    if (connexion_tcp.sockfd >= 0) {
+        close(connexion_tcp.sockfd);
+        connexion_tcp.sockfd = -1;
+    }
+    pthread_mutex_unlock(&connexion_tcp.mutex);
 
-    // Fermer la socket TCP
-    close(sockfd_local);
-    *sockfd_ptr = -1;
-
-    // Attendre que le thread de réception se termine
-    if (tid_reception) {
-        pthread_join(*tid_reception, NULL);
+    // Attendre le thread de réception interne
+    if (connexion_tcp.tid_rcv != 0) {
+        pthread_cancel(connexion_tcp.tid_rcv);   // ou utiliser un flag d'arrêt dans receive_thread
+        pthread_join(connexion_tcp.tid_rcv, NULL);
+        connexion_tcp.tid_rcv = 0;
     }
 
-    printf("[Client] Déconnecté proprement du contrôleur.\n");
+    INFO(TAG, "Voiture déconnecté proprement du contrôleur");
 }
 
-void* initialisation_communication_voiture(void* arg) {
-    struct sockaddr_in serv_addr;
+void* initialisation_communication_voiture() {
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) { perror("Erreur création socket"); exit(1); }
+    while (1) {
+        pthread_mutex_lock(&connexion_tcp.mutex);
+        bool stop = connexion_tcp.stop_client;
+        bool connected = connexion_tcp.voiture_connectee;
+        pthread_mutex_unlock(&connexion_tcp.mutex);
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(TCP_PORT);
-    serv_addr.sin_addr.s_addr = inet_addr(CONTROLEUR_IP);
+        if (stop) break;
+        if (!connected) {
+            // Création socket
+            int sock = socket(AF_INET, SOCK_STREAM, 0);
+            if (sock < 0) { perror("Erreur création socket"); sleep(5); continue; }
 
-    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Erreur connexion");
-        exit(1);
+            connexion_tcp.serv_addr.sin_family = AF_INET;
+            connexion_tcp.serv_addr.sin_port = htons(TCP_PORT);
+            connexion_tcp.serv_addr.sin_addr.s_addr = inet_addr(CONTROLEUR_IP);
+
+            if (connect(sock, (struct sockaddr*)&connexion_tcp.serv_addr, sizeof(connexion_tcp.serv_addr)) < 0) {
+                perror("Erreur connexion");
+                close(sock);
+                sleep(5);
+                continue;
+            }
+
+            pthread_mutex_lock(&connexion_tcp.mutex);
+            connexion_tcp.sockfd = sock;
+            connexion_tcp.voiture_connectee = true;
+            // Lancement du thread de réception si pas déjà lancé
+            if (connexion_tcp.tid_rcv == 0) {
+                if (pthread_create(&connexion_tcp.tid_rcv, NULL, receive_thread, NULL) != 0) {
+                    perror("Erreur création thread réception");
+                    close(connexion_tcp.sockfd);
+                    connexion_tcp.sockfd = -1;
+                    connexion_tcp.voiture_connectee = false;
+                    connexion_tcp.tid_rcv = 0;
+                    pthread_mutex_unlock(&connexion_tcp.mutex);
+                    sleep(5);
+                    continue;
+                }
+            }
+            pthread_mutex_unlock(&connexion_tcp.mutex);
+
+            INFO(TAG, "Voiture Connectée au controleur");
+        }
+
+        usleep(100000); // 100 ms
     }
 
-    printf("[Client] Connecté au serveur\n");
-
-    pthread_create(&tid_rcv, NULL, receive_thread, NULL);
+    // Fermeture propre à la sortie
+    pthread_mutex_lock(&connexion_tcp.mutex);
+    if (connexion_tcp.sockfd >= 0) { close(connexion_tcp.sockfd); connexion_tcp.sockfd = -1; }
+    pthread_mutex_unlock(&connexion_tcp.mutex);
 
     return NULL;
+}
+
+bool est_connectee() {
+    bool connected;
+
+    pthread_mutex_lock(&connexion_tcp.mutex);
+    connected = connexion_tcp.voiture_connectee;
+    pthread_mutex_unlock(&connexion_tcp.mutex);
+
+    return connected;
 }

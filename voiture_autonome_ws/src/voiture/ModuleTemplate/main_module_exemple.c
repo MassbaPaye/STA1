@@ -20,7 +20,6 @@ int affiche_position_actuelle() {
         ERR(TAG, "Position de la voiture inconnue");
         return -1;
     }
-    INFO(TAG, "Position de la voiture %d :", t.id_voiture);
     INFO(TAG, "\tx: %d", t.x);
     INFO(TAG, "\ty: %d", t.y);
     INFO(TAG, "\tz: %d", t.z);

@@ -30,6 +30,7 @@ void _log(char level, const char* prefix, const char* fmt, ...);
 #define ERR(prefix, fmt, ...)   _log('E', prefix, fmt, ##__VA_ARGS__)
 
 #if LOG_LEVEL >= 2
+#define DEBUG
 #define DBG(prefix, fmt, ...)   _log('D', prefix, fmt, ##__VA_ARGS__)
 #else
 #define DBG(prefix, fmt, ...)   ((void)0)

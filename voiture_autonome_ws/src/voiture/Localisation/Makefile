@@ -10,7 +10,7 @@ CC := gcc
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)  # Possibilité d'ajouter des flags (-lm, -pthread par exemple)
-SRC := main_localisation.c # A modifier lorsqu'on ajoute des fichiers de code
+SRC := marvelmind.c marvelmind_manager.c localisation_fusion.c main_localisation.c # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)

@@ -23,10 +23,9 @@ int sendConsigne(int Id, const Consigne* cons) {
     return sendBuffer(Id, cons, sizeof(Consigne));
 }
 
-int sendItineraire(int Id, const Itineraire* iti) {
-    sendBuffer(Id, &iti->id_voiture, sizeof(int));
-    sendBuffer(Id, &iti->nb_points, sizeof(int));
-    return sendBuffer(Id, iti->points, iti->nb_points * sizeof(Point));
+int sendItineraire(int sockfd, const Itineraire* iti) {
+    sendBuffer(sockfd, &iti->nb_points, sizeof(int));
+    return sendBuffer(sockfd, iti->points, iti->nb_points * sizeof(Point));
 }
 
 int sendFin(int Id) {

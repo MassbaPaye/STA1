@@ -20,11 +20,21 @@ ifeq ($(MODE),debug)
 else
     CFLAGS += -DLOG_LEVEL=1
 endif
+
 LOG_TO_FILE ?= 1
 ifeq ($(LOG_TO_FILE),0)
     CFLAGS += -DLOG_TO_FILE=0
 else 
 	CFLAGS += -DLOG_TO_FILE=1
+endif
+
+SIMULATION ?= 0
+ifeq ($(SIMULATION),1)
+    CFLAGS += -DSIMULATION
+endif
+DEBUG_LOC ?= 0
+ifeq ($(DEBUG_LOC),1)
+    CFLAGS += -DDEBUG_LOC
 endif
 
 # Liste des modules à ignorer : ex. make voiture DISABLE=Localisation,Comportement

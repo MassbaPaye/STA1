@@ -1,2 +1,4 @@
 
-int start_localisation(char* message);
+void* lancer_localisation_thread();
+
+void stop_localisation();

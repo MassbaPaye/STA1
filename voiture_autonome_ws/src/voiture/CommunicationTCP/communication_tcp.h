@@ -11,5 +11,6 @@ int sendPositionVoiture(int sockfd, const PositionVoiture* pos);
 int sendDemande(int sockfd, const Demande* dem);
 int sendFin(int sockfd);
 
-void deconnecter_controleur(pthread_t* tid_reception, int* sockfd_ptr);
-void* initialisation_communication_voiture(void* arg);
+void deconnecter_controleur();
+void* initialisation_communication_voiture();
+bool est_connectee();
