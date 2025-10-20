@@ -1,5 +1,5 @@
 contourpy==1.3.3
-cycler==0.12.1
+cycler==0.10.0
 fonttools==4.60.1
 kiwisolver==1.4.9
 matplotlib==3.10.6
@@ -26,3 +26,4 @@ onnx2tf==1.22.3
 onnxslim==0.1.71
 sng4onnx==1.0.4
 tflite-support==0.1.0a1
+roboflow==1.1.30

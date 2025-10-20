@@ -1,15 +1,22 @@
 import cv2
 import os
 import glob
+import time
+import struct
 
 # Ajouts pour la détection TFLite
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Iterable
 import numpy as np
 
-import struct
+try:
+    from picamera2 import Picamera2
+except Exception:
+    Picamera2 = None  # Picamera2 n'est disponible que sur Raspberry Pi / libcamera
 
+# Modèle TFLite exporté localement (chemin par défaut vers best.pt)
+DEFAULT_TFLITE_WEIGHTS = Path(__file__).resolve().parent.parent / "models" / "best.pt"
 # Exemple de point (x, y)
 class Point:
     def __init__(self, x: int, y: int):
@@ -24,7 +31,199 @@ class Obstacle:
         self.pointd = pointd
         self.pointg = pointg
 
-# Charger l'interpréteur TFLite (tflite-runtime sur Linux/ARM, sinon tensorflow.lite)
+
+# ------------------------- IMX500 – Acquisition brute -------------------------
+
+IMX500_RES_PRESETS: Dict[str, Tuple[int, int]] = {
+    "12mp": (4056, 3040),
+    "2mp": (2028, 1520),
+    "1080p": (1920, 1080),
+    "720p": (1280, 720),
+}
+
+IMX500_DEFAULT_RAW_FORMAT = "SBGGR10"  # Bayer 10 bits typique des capteurs Sony
+
+
+def _resolve_imx500_resolution(resolution: str | Tuple[int, int]) -> Tuple[int, int]:
+    """
+    Convertit une chaîne de preset ('12mp', '2028x1520', …) ou un tuple en (width, height).
+    """
+    if isinstance(resolution, tuple):
+        return int(resolution[0]), int(resolution[1])
+    res_lower = str(resolution).lower()
+    if res_lower in IMX500_RES_PRESETS:
+        return IMX500_RES_PRESETS[res_lower]
+    if "x" in res_lower:
+        w, h = res_lower.replace(" ", "").split("x", 1)
+        return int(w), int(h)
+    raise ValueError(f"Résolution IMX500 inconnue: {resolution}")
+
+
+def imx500_open_camera(
+    resolution: str | Tuple[int, int] = "2mp",
+    raw_format: str = IMX500_DEFAULT_RAW_FORMAT,
+    warmup: float = 1.0,
+    controls: Optional[Dict[str, object]] = None,
+) -> Tuple[Picamera2, Dict[str, object]]:
+    """
+    Initialise Picamera2 pour accéder à l'IMX500 et renvoie (picam2, info).
+
+    - resolution: preset ou tuple (w, h)
+    - raw_format: format du flux brut (ex: 'SBGGR10', 'SRGGB12')
+    - warmup: délai en secondes pour stabiliser l'exposition
+    - controls: dictionnaire optionnel de contrôles (AwbMode, ExposureTime, AnalogueGain…)
+
+    La fonction lève RuntimeError si Picamera2 n'est pas présent (par exemple sur macOS).
+    """
+    if Picamera2 is None:
+        raise RuntimeError(
+            "Picamera2 n'est pas disponible sur cette plateforme. "
+            "Installe 'python3-picamera2' sur Raspberry Pi pour accéder à l'IMX500."
+        )
+
+    size = _resolve_imx500_resolution(resolution)
+    picam2 = Picamera2()
+
+    raw_cfg = picam2.create_still_configuration(
+        raw={"format": raw_format, "size": size},
+        buffer_count=3,
+    )
+    picam2.configure(raw_cfg)
+    picam2.start()
+
+    if warmup > 0:
+        time.sleep(warmup)
+
+    if controls:
+        picam2.set_controls(controls)
+        # petit délai pour appliquer les contrôles (focus, expo…)
+        time.sleep(0.2)
+
+    info = {
+        "resolution": size,
+        "raw_format": raw_format,
+        "controls": controls or {},
+    }
+    return picam2, info
+
+
+def imx500_capture_raw_array(
+    picam2: Picamera2,
+    stream: str = "raw",
+    bit_depth: int = 10,
+    target_bit_depth: Optional[int] = None,
+    subtract_black_level: bool = False,
+    black_level: int = 64,
+    normalize: bool = False,
+) -> np.ndarray:
+    """
+    Capture un tableau brut (numpy) depuis l'IMX500.
+
+    - stream: nom du flux Picamera2 ('raw' pour la capture brute, 'main' pour RGB)
+    - bit_depth: profondeur de bits (10 bits par défaut)
+    - target_bit_depth: profondeur de sortie souhaitée (ex. 16 pour obtenir un container 16 bits)
+    - subtract_black_level: retire le niveau noir (utile pour du RAW 10 bits)
+    - black_level: valeur soustraite si subtract_black_level=True
+    - normalize: si True, renvoie un float32 normalisé [0,1]
+    """
+    if Picamera2 is None:
+        raise RuntimeError("Picamera2 n'est pas disponible sur cette plateforme.")
+    raw = picam2.capture_array(stream)
+    if raw is None:
+        raise RuntimeError("Capture RAW IMX500 vide.")
+
+    # Picamera2 fournit déjà un np.ndarray; on vérifie le type
+    arr = np.asarray(raw)
+
+    # Soustraction éventuelle du niveau noir, dans l'échelle d'origine
+    if subtract_black_level:
+        arr = arr.astype(np.int32) - int(black_level)
+        arr = np.clip(arr, 0, (1 << bit_depth) - 1).astype(np.uint16)
+
+    # Conversion vers une profondeur cible (ex. 10 bits -> 16 bits)
+    if target_bit_depth is not None and target_bit_depth != bit_depth:
+        if not np.issubdtype(arr.dtype, np.integer):
+            raise TypeError("La conversion de profondeur de bits exige un tableau entier (uint8/uint16).")
+        arr = arr.astype(np.uint32)
+        shift = int(target_bit_depth) - int(bit_depth)
+        if shift > 0:
+            arr = arr << shift
+        elif shift < 0:
+            arr = arr >> (-shift)
+        max_val = (1 << target_bit_depth) - 1
+        arr = np.clip(arr, 0, max_val)
+        arr = arr.astype(np.uint16 if target_bit_depth > 8 else np.uint8)
+        bit_depth = int(target_bit_depth)
+
+    if normalize:
+        arr = arr.astype(np.float32) / float((1 << bit_depth) - 1)
+
+    return arr
+
+
+def imx500_iter_raw_frames(
+    picam2: Picamera2,
+    *,
+    limit: Optional[int] = None,
+    sleep: float = 0.0,
+) -> Iterable[np.ndarray]:
+    """
+    Générateur qui renvoie successivement des tableaux RAW provenant de l'IMX500.
+    - limit: nombre maximum de frames (None → infini)
+    - sleep: délai en secondes entre chaque capture (0 = enchaînement rapide)
+    """
+    if Picamera2 is None:
+        raise RuntimeError("Picamera2 n'est pas disponible sur cette plateforme.")
+    count = 0
+    while limit is None or count < limit:
+        yield imx500_capture_raw_array(picam2)
+        count += 1
+        if sleep > 0:
+            time.sleep(sleep)
+
+
+def imx500_close_camera(picam2: Optional[Picamera2]) -> None:
+    """
+    Arrête proprement la caméra IMX500 initialisée avec Picamera2.
+    """
+    if picam2 is None:
+        return
+    try:
+        picam2.stop()
+    finally:
+        try:
+            picam2.close()
+        except Exception:
+            pass
+
+def imx500_load_raw_file(
+    path: str | Path,
+    resolution: str | Tuple[int, int],
+    bit_depth: int = 10,
+    dtype: np.dtype = np.uint16,
+) -> np.ndarray:
+    """
+    Charge un fichier RAW binaire (par ex. `.raw` exporté depuis AITRIOS) en array numpy.
+    - path: chemin vers le fichier brut
+    - resolution: tuple (w,h) ou preset identique à imx500_open_camera
+    - bit_depth: profondeur utile (10 bits par défaut)
+    - dtype: type cible du tableau numpy (uint16 recommandé)
+    """
+    w, h = _resolve_imx500_resolution(resolution)
+    path = Path(path)
+    data = np.fromfile(path, dtype=dtype)
+    expected = w * h
+    if data.size != expected:
+        raise ValueError(
+            f"Le fichier RAW {path} ne correspond pas à {w}x{h} pixels "
+            f"({expected} valeurs attendues, {data.size} trouvées)."
+        )
+    arr = data.reshape((h, w))
+    if bit_depth < np.iinfo(dtype).bits:
+        shift = np.iinfo(dtype).bits - bit_depth
+        arr = (arr >> shift).astype(dtype)
+    return arr
+
 try:
     import tflite_runtime.interpreter as tflite
 except Exception:
@@ -68,16 +267,6 @@ def _xywh2xyxy(xywh):
     return np.stack([x1, y1, x2, y2], axis=1)
 
 def capture_image_from_source(source):
-    """
-    Ouvre une source vidéo (webcam ou fichier) et récupère une image.
-    Args:
-        source (int | str): index de webcam (0, 1, ...) ou chemin vers un fichier vidéo/image.
-    Returns:
-        np.ndarray: image BGR capturée.
-    Raises:
-        RuntimeError: si la source ne peut pas être ouverte ou si aucune image n'est lue.
-    """
-    # Ouvre la source
     if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
         cap = cv2.VideoCapture(int(source))
     else:
@@ -155,6 +344,12 @@ class TFLiteYOLO:
         # Taille entrée du modèle
         self.in_h = int(self.inp['shape'][1])
         self.in_w = int(self.inp['shape'][2])
+        out_shape = tuple(int(v) for v in self.out.get('shape', ()))
+        # Déterminer la dimension des features (4 bbox + obj? + classes)
+        dims = [d for d in out_shape if d not in (0, 1)]
+        feature_candidates = [d for d in dims if d > 4]
+        self.feature_dim = min(feature_candidates) if feature_candidates else (dims[0] if dims else 0)
+        self.num_classes = max(0, self.feature_dim - 4)
 
     def _preprocess(self, bgr):
         # letterbox simple: redimension isotrope + padding noir pour conserver le ratio
@@ -185,17 +380,30 @@ class TFLiteYOLO:
     def _postprocess(self, out_arr, meta, class_filter=None):
         # Tolérer (1, 84, N) ou (1, N, 84)
         out = out_arr.squeeze()
+        if out.ndim == 3:
+            out = out.reshape(out.shape[0], -1)
         if out.ndim != 2:
             return []
         c1, c2 = out.shape
-        if c1 == 84:  # (84, N)
-            out = out.T  # -> (N, 84)
-        elif c2 == 84:
-            pass  # (N, 84)
-        else:
-            # format inconnu
+        # Les features (4 + classes) sont généralement la plus petite dimension > 4
+        if c1 < c2 and c1 <= max(512, self.feature_dim or 0):
+            out = out.T
+        if out.shape[1] < 6:
             return []
         xywh = out[:, :4]
+        cls_block = out[:, 4:]
+        if cls_block.size == 0:
+            return []
+        # Déterminer si une colonne d'objectness est incluse
+        est_num_classes = self.num_classes or cls_block.shape[1]
+        if cls_block.shape[1] == est_num_classes + 1:
+            obj = cls_block[:, :1]
+            cls_scores = cls_block[:, 1:]
+        else:
+            obj = None
+            cls_scores = cls_block
+            if cls_scores.shape[1] != est_num_classes and est_num_classes:
+                est_num_classes = cls_scores.shape[1]
         # Certaines exports TFLite renvoient des coordonnees normalisees [0,1]
         # Si toutes les valeurs sont <= 1.5, on remultiplie par la taille d'entree du modele
         if np.all(xywh <= 1.5):
@@ -203,10 +411,13 @@ class TFLiteYOLO:
             xywh[:, 1] *= meta.get('in_h', self.in_h)
             xywh[:, 2] *= meta.get('in_w', self.in_w)
             xywh[:, 3] *= meta.get('in_h', self.in_h)
-        cls_scores = out[:, 4:]
         # Si export a déjà activations, on suppose [0,1]; sinon appliquer sigmoïde
         if cls_scores.max() > 1.0 or cls_scores.min() < 0.0:
             cls_scores = 1.0 / (1.0 + np.exp(-cls_scores))
+        if obj is not None:
+            if obj.max() > 1.0 or obj.min() < 0.0:
+                obj = 1.0 / (1.0 + np.exp(-obj))
+            cls_scores = cls_scores * obj
         scores = cls_scores.max(axis=1)
         cls_ids = cls_scores.argmax(axis=1)
         # Seuil de confiance
@@ -256,7 +467,6 @@ def _load_tflite_detector_cached(weights_str: str, imgsz: int, conf: float, iou:
     weights = Path(weights_str)
     return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads)
 
-
 def _normalize_classes_arg(classes) -> Optional[List[int]]:
     if classes is None or classes == '':
         return None
@@ -265,7 +475,6 @@ def _normalize_classes_arg(classes) -> Optional[List[int]]:
     if isinstance(classes, str):
         return [int(c.strip()) for c in classes.split(',') if c.strip() != '']
     raise TypeError("Argument 'classes' doit être une liste d'entiers, un tuple, une chaîne '0,1', ou None.")
-
 
 def detect_objects_tflite_from_image(
     image_bgr: np.ndarray,
@@ -298,19 +507,18 @@ def detect_objects_tflite_from_image(
         })
     return results
 
-# Exemple d'utilisation:
-img = capture_image_from_source(0)
-objs = detect_objects_tflite_from_image(img,"models/yolov8n_saved_model/yolov8n_float32.tflite",imgsz=640, conf=0.25, threads=3)
-print(objs)
-print("nb det:", len(objs))
-
 def transformationPixelVersCoordonnees(det):
     #detsExemple=[{'class_id': 0, 'score': 0.7719968557357788, 'x1': 219, 'y1': 181, 'x2': 1653, 'y2': 1069}]
     distance=CalculeDistanceFromPixel(det) # À définir
     left=CalculeYFromPixel(det) # À définir
     right=CalculeYFromPixel(det) # À définir
-    Obstacle = Obstacle( type_id=det["class_id"], pointd=Point(distance,left), pointd=Point(distance,right))
-    return Obstacle
+    return Obstacle(
+        type_id=det["class_id"],
+        pointd=Point(distance, right),
+        pointg=Point(distance, left),
+        pointg_x=det["x1"],
+        pointg_y=det["y1"],
+    )
 
 def draw_detections_on_image(img: np.ndarray, objs: List[Dict[str, float]]) -> None:
     for det in objs:
@@ -327,3 +535,26 @@ def draw_detections_on_image(img: np.ndarray, objs: List[Dict[str, float]]) -> N
         # Ajouter le label au-dessus de la boite
         label = f"ID {class_id}: {score:.2f}"
         cv2.putText(img, label, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+if __name__ == "__main__":
+    img = capture_image_from_source(0)
+    picam2, info = imx500_open_camera(resolution="2mp", raw_format="SBGGR10", warmup=1.0)
+    raw = imx500_capture_raw_array(picam2, bit_depth=10)
+    imx500_close_camera(picam2)
+    raw16 = imx500_capture_raw_array(
+            picam2,
+            bit_depth=10,
+            target_bit_depth=16,
+            subtract_black_level=True,
+            black_level=64,
+        )
+    bgr = cv2.cvtColor(raw_16, cv2.COLOR_BAYER_BG2BGR)
+    objs = detect_objects_tflite_from_image(
+        bgr,
+        DEFAULT_TFLITE_WEIGHTS,
+        imgsz=640,
+        conf=0.25,
+        threads=3,
+    )
+    print(objs)
+    print("nb det:", len(objs))

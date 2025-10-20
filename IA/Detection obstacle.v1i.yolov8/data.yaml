@@ -1,0 +1,15 @@
+path: /Users/basilepeyrat/Downloads/STA1/IA/Detection obstacle.v1i.yolov8
+
+train: train/images
+val: train/images
+test: train/images
+
+nc: 9
+names: ['obstacle_voiture', 'panneau-limitation30', 'panneau_barriere', 'panneau_ceder_passage', 'panneau_fin30', 'panneau_intersection', 'panneau_parking', 'panneau_sens_unique', 'pont']
+
+roboflow:
+  workspace: victor-lauret
+  project: detection-obstacle-rao9o
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/victor-lauret/detection-obstacle-rao9o/dataset/1
