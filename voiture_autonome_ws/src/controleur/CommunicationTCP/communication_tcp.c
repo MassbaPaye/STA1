@@ -64,8 +64,7 @@ void afficher_voitures_connectees() {
 }
 
 /* === Boucle principale de communication === */
-void* initialisation_communication_controleur(void* arg) {
-    (void)arg;
+void* initialisation_communication_controleur() {
     int se;
     struct sockaddr_in adrlect;
     CHECK_ERROR((se = socket(AF_INET, SOCK_STREAM, 0)), -1, "Erreur création socket");

@@ -99,22 +99,22 @@ void* receive_thread(void* arg) {
         switch(type) {
             case MESSAGE_POSITION: {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
-                printf("[Voiture %d] Position : (%d,%d,%d) theta=%.2f\n",
-                       pos->id_voiture, pos->x, pos->y, pos->z, pos->theta);
+                printf("[Voiture i] Position : (%f,%f,%f) theta=%.2f\n",
+                       pos->x, pos->y, pos->z, pos->theta);
                 break;
             }
             case MESSAGE_DEMANDE: {
                 Demande* d = (Demande*) buffer;
-                printf("[Voiture %d] Demande : structure=%d type=%d dir=%c\n",
-                       d->id_voiture, d->structure_id, d->type_operation, d->direction);
+                printf("[Voiture i] Demande : structure=%d type=%d dir=%c\n",
+                       d->structure_id, d->type_operation, d->direction);
                 break;
             }
             case MESSAGE_FIN: {
-                printf("[Voiture %d] a envoyé MESSAGE_FIN : %s\n", v->id_voiture, buffer);
+                printf("[Voiture i] a envoyé MESSAGE_FIN : %s\n", buffer);
                 goto fin_connexion; // sortir de la boucle et nettoyer
             }
             default:
-                printf("[Voiture %d] Message type %d ignoré.\n", v->id_voiture, type);
+                printf("[Voiture i] Message type %d ignoré.\n", type);
                 break;
         }
     }
@@ -148,7 +148,7 @@ void deconnecter_voiture(VoitureConnection* v) {
 
     free(v);
 }
-/*
+
 /* === Boucle interactive === */
 /*
 void* boucle_interactive(void* arg) {

@@ -10,6 +10,7 @@
 #include "main_module_exemple.h"
 #include "messages.h"
 #include "communication_tcp.h"
+#include "communication_serie.h"
 
 #define TAG "main"
 
