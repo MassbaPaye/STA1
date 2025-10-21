@@ -1,10 +1,13 @@
 #ifdef SIMULATION
+
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "voiture_globals.h"
 #include "marvelmind_manager.h"
 #include "config.h"
@@ -33,12 +36,21 @@ static inline float rand_sym() {
 void* lancer_simulateur() {
     INFO(TAG, "Simulation capteurs + Marvelmind démarrée");
 
+    // Créer le dossier output s'il n'existe pas
+    struct stat st = {0};
+    if (stat("output", &st) == -1) {
+        if (mkdir("output", 0755) != 0) {
+            ERR(TAG, "Impossible de créer le dossier 'output'");
+            return NULL;
+        }
+    }
+
     srand(time(NULL));
     struct timespec t_now;
     double t_last_mm = 0.0, t_start = 0.0;
 
     // --- Ouverture du fichier CSV ---
-    FILE* f = fopen("simulation_log.csv", "w");
+    FILE* f = fopen("output/simulation_log.csv", "w");
     if (!f) {
         ERR(TAG, "Impossible d'ouvrir le fichier CSV !");
         return NULL;
@@ -69,7 +81,7 @@ void* lancer_simulateur() {
             .vfiltre2 = v_droite_mesuree / RAYON_ROUE,
             .angle = angle_deg
         };
-        set_sensor_data(&data, false);
+        set_sensor_data(&data);
 
         // 3️⃣ Simuler une mesure Marvelmind toutes les 2 s
         clock_gettime(CLOCK_MONOTONIC, &t_now);
@@ -88,8 +100,8 @@ void* lancer_simulateur() {
 
         // 4️⃣ Lecture des positions pour enregistrement
         PositionVoiture pos_fusion = {0};
-        get_position(&pos_fusion, true);
-        MarvelmindPosition mm_pos = get_marvelmind_position();
+        get_position(&pos_fusion);
+        MarvelmindPosition mm_pos = get_marvelmind_position(false);
 
         // 5️⃣ Calcul du temps écoulé depuis le début
         double t_s = (t_now.tv_sec + t_now.tv_nsec / 1e9) - t_start;

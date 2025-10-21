@@ -71,6 +71,7 @@ void deconnecter_controleur() {
 }
 
 void* initialisation_communication_voiture(void* arg) {
+    INFO(TAG, "Thread communication tcp démarré");
 
     while (1) {
         pthread_mutex_lock(&connexion_tcp.mutex);

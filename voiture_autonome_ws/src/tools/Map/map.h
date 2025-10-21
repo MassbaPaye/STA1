@@ -29,16 +29,6 @@ typedef struct {
     Arc *arcs;
 } Graph;
 
-// Résultat de Dijkstra
-typedef struct {
-    int n_path;
-    Node **path;   // tableau de pointeurs vers les nœuds du chemin
-    double distance;
-} ShortestPath;
-
-// Calcule le plus court chemin de src_id vers dst_id
-ShortestPath dijkstra(const Graph *g, int src_id, int dst_id);
-void free_shortest_path(ShortestPath *sp);
 
 // --- Fonctions ---
 Graph *load_graph(const char *nodes_file, const char *arcs_file);

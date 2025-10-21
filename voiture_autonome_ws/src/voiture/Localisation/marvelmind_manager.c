@@ -11,6 +11,7 @@
 #include <string.h>
 #include <time.h>
 #include "marvelmind.h"
+#include "marvelmind_manager.h"
 
 #define TAG "loc-marvelmind"
 #define RECONNECT_DELAY_SEC 5
@@ -20,108 +21,74 @@
 // Variables internes
 // ===========================
 
-static pthread_t marvelmind_thread;
 static bool running = false;
 
 static pthread_mutex_t pos_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t pos_cond = PTHREAD_COND_INITIALIZER;
 
 static MarvelmindPosition current_position = {0};
+struct MarvelmindHedge *hedge;
 
 // ===========================
 // Thread principal
 // ===========================
 
-static void *marvelmind_task(void *arg) {
-    (void)arg;  // inutilisé
-    bool was_connected = true; // Pour afficher un warn au début s'il y a un echec de connexion
-
-    while (running) {
-        struct MarvelmindHedge *hedge = createMarvelmindHedge();
-        if (!hedge) {
-            ERR(TAG, "Impossible de créer le hedge Marvelmind");
-            sleep(RECONNECT_DELAY_SEC);
-            continue;
-        }
-
-        hedge->ttyFileName = marvelmind_port;
-        hedge->verbose = false;
-        hedge->terminationRequired = false;
-
-        startMarvelmindHedge(hedge);
-        
-        struct PositionValue pos = {0};
-        
-        while (running && !hedge->terminationRequired) {
-            if (getPositionFromMarvelmindHedge(hedge, &pos)) {
-                pthread_mutex_lock(&pos_mutex);
-                current_position.x = (float) pos.x;
-                current_position.y = (float) pos.y;
-                current_position.z = (float) pos.z;
-                clock_gettime(CLOCK_REALTIME, &current_position.t);
-                current_position.valid = true;
-                pthread_cond_broadcast(&pos_cond);
-                pthread_mutex_unlock(&pos_mutex);
-                // Reconnexion réussie
-                if (!was_connected) {
-                    INFO(TAG, "Marvelmind connecté sur %s", marvelmind_port);
-                    was_connected = true;
-                }
-            } else {
-                 // Perte de connexion détectée
-                if (was_connected) {
-                    WARN(TAG, "Marvelmind perdu (%s), tentative de reconnexion toute les %d s", marvelmind_port, RECONNECT_DELAY_SEC);
-                    was_connected = false;
-                }
-                struct timespec ts;
-                ts.tv_sec = 0;
-                ts.tv_nsec = (int) 1/GET_POSITION_FREQ * 1e9; // 100 ms
-                nanosleep(&ts, NULL);
-            }
-        }
-        if (!running)
-            INFO(TAG, "Déconnexion du Marvelmind (%s).");
-        stopMarvelmindHedge(hedge);
-        destroyMarvelmindHedge(hedge);
-        hedge = NULL;
-
-        if (running) {
-            sleep(RECONNECT_DELAY_SEC);
-        }
-    }
-
-    DBG(TAG, "Thread Marvelmind terminé.");
-    return NULL;
+static void positionCallback(struct PositionValue position) {
+    pthread_mutex_lock(&pos_mutex);
+    current_position.x = (float) position.x;
+    current_position.y = (float) position.y;
+    current_position.z = (float) position.z;
+    clock_gettime(CLOCK_REALTIME, &current_position.t);
+    current_position.valid = true;
+    current_position.is_new = true;
+    pthread_mutex_unlock(&pos_mutex);
+    pthread_cond_broadcast(&pos_cond);
 }
+
+
+
 
 // ===========================
 // Fonctions publiques
 // ===========================
 
-int start_marvelmind() {
+int lancer_marvelmind() {
     if (running) {
-        ERR(TAG, "Thread Marvelmind déjà actif");
+        ERR(TAG, "Marvelmind déjà lancé");
         return -1;
     }
+    hedge = createMarvelmindHedge();
 
-    if (marvelmind_port == NULL) {
-        ERR(TAG, "Port Marvelmind non défini (marvelmind_port est NULL)");
-        return -1;
-    }
-
-    running = true;
-    current_position.valid = false;
-
-    int res = pthread_create(&marvelmind_thread, NULL, marvelmind_task, NULL);
-    if (res != 0) {
-        ERR(TAG, "Erreur création thread Marvelmind : %s", strerror(res));
+    if (hedge == NULL) {
+        ERR(TAG, "Impossible de créer le hedge Marvelmind");
         running = false;
         return -1;
     }
+    if (marvelmind_port == NULL) {
+        ERR(TAG, "port_marvelmind est NULL ");
+        running = false;
+        hedge = NULL;
+        return -1;
+    }
+    running = true;
+    current_position.valid = false;
 
-    INFO(TAG, "Thread Marvelmind lancé avec succès.");
+    hedge->ttyFileName = marvelmind_port;
+    // Surement à modifier 
+    #ifdef DEBUG_LOC
+    hedge->verbose = true;
+    #else
+    hedge->verbose = false;
+    #endif
+    hedge->terminationRequired = false;
+    hedge->receiveDataCallback = positionCallback; // a definir
+
+    startMarvelmindHedge(hedge);
+    
+    INFO(TAG, "Thread Marvelmind lancé avec succès sur %s.", marvelmind_port);
     return 0;
 }
+
 
 void stop_marvelmind() {
     if (!running)
@@ -129,8 +96,12 @@ void stop_marvelmind() {
 
     running = false;
     pthread_cond_broadcast(&pos_cond); // débloque un éventuel wait_for_position()
+    if (hedge) {
+        stopMarvelmindHedge(hedge);
+        destroyMarvelmindHedge(hedge);
+        hedge = NULL;
+    }
 
-    pthread_join(marvelmind_thread, NULL);
     INFO(TAG, "Thread Marvelmind arrêté proprement.");
 }
 
@@ -145,7 +116,7 @@ int wait_for_position(int timeout_sec) {
         ts.tv_sec += timeout_sec;
         ret = pthread_cond_timedwait(&pos_cond, &pos_mutex, &ts);
     } else if (timeout_sec == 0) {
-        ret = ETIMEDOUT;
+        ret = -1;
     } else {
         pthread_cond_wait(&pos_cond, &pos_mutex);
     }
@@ -155,8 +126,9 @@ int wait_for_position(int timeout_sec) {
     return (ret == 0) ? 0 : -1;
 }
 
-MarvelmindPosition get_marvelmind_position() {
+MarvelmindPosition get_marvelmind_position(bool change_to_read) {
     pthread_mutex_lock(&pos_mutex);
+    current_position.is_new = false;
     MarvelmindPosition pos_copy = current_position;
     pthread_mutex_unlock(&pos_mutex);
     return pos_copy;
