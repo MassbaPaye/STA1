@@ -60,6 +60,7 @@ void* receive_thread() {
                 Consigne* c = (Consigne*) buffer;
                 set_consigne(c);
                 get_consigne(c);
+                printf("autorisation = %d, structure id = %d \n", c->autorisation, c->structure_id)
                 break;
             }
 
