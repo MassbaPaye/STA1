@@ -23,8 +23,8 @@ pthread_t thread_communication_serie;
 pthread_t thread_simulation;
 #endif
 
+PositionVoiture pos;
 void* thread_periodique(void* arg) {
-    PositionVoiture pos;
     int a = 0;
 
     while (1) {
