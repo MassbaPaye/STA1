@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "messages.h"
 #include "controleur_globals.h"
 #include "controleur_routier.h"
@@ -15,11 +16,11 @@ void gerer_demande(int id){
                 structure[d->structure_id].id = id;
                 c->structure_id = d->structure_id;
                 c->autorisation = 0;
-                sendConsigne(id, c);
+                sendMessage(id, MESSAGE_CONSIGNE, c);
             } else {
                 c->structure_id = d->structure_id;
                 c->autorisation = 1;
-                sendConsigne(id, c);
+                sendMessage(id, MESSAGE_CONSIGNE, c);
             }
         }
         if (d->type_operation == 0){
