@@ -15,7 +15,7 @@ void exemple_module(char* message) {
 
 int affiche_position_actuelle() {
     PositionVoiture t;
-    if (get_position(&t, true) != 0)
+    if (get_position(&t) != 0)
     {
         ERR(TAG, "Position de la voiture inconnue");
         return -1;

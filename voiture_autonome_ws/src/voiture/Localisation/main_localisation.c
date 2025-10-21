@@ -49,7 +49,7 @@ void update_localisation_ponderation()
     pos_globale.theta = odom_pos_estimee.theta;
 
     // --- Mise à jour de la position globale partagée ---
-    set_position(&pos_globale, false);
+    set_position(&pos_globale);
 
 }
 

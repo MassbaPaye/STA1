@@ -39,7 +39,7 @@ static void* thread_read(void* arg) {
         if (n > 0) {
             SensorData local;
             parse_sensor_line(line, &local);
-            set_sensor_data(&local, false);
+            set_sensor_data(&local);
             /* SensorData global_data;
             get_sensor_data(&global_data, true);
             DBG(TAG, "Données recu : overrun:%d, ref1:%.2f, ref2:%.2f, speed1:%.2f, speed2:%.2f, angle:%.2f, vfiltre1:%.2f, vfiltre2:%.2f\n",
