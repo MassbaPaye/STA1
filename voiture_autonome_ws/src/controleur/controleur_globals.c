@@ -14,6 +14,7 @@ const struct timespec TIMESPEC_UNDEFINED = {0, 0};
 
 Voiture voitures[MAX_VOITURES];
 Queue demandes_queue;
+EtatStructure structure[MAX_STRUCTURE];
 
 /* ==== Initialisation des mutex et queue ==== */
 void init_controleur_globals(void) {

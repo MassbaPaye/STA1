@@ -109,7 +109,7 @@ typedef struct {
     Description : Permet au controleur routier de répondre à la demande d'une voiture
 */
 typedef struct {
-    int id_structure;
+    int structure_id;
     ConsigneType autorisation; // CONSIGNE_AUTORISATION ou CONSIGNE_ATTENTE
 } Consigne;
 

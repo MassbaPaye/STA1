@@ -13,6 +13,8 @@
 #include "TCP_controleur.h"
 #include "messages.h"
 #include "logger.h"
+#include "controleur_globals.h"
+#include "controleur_routier.h"
 
 /* --- Mutex global --- */
 pthread_mutex_t mutex_voitures = PTHREAD_MUTEX_INITIALIZER;
@@ -99,14 +101,13 @@ void* receive_thread(void* arg) {
         switch(type) {
             case MESSAGE_POSITION: {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
-                printf("[Voiture %d] Position : (%d,%d,%d) theta=%.2f\n",
-                       pos->id_voiture, pos->x, pos->y, pos->z, pos->theta);
+                set_voiture_position(v->id_voiture, pos, true);
                 break;
             }
             case MESSAGE_DEMANDE: {
                 Demande* d = (Demande*) buffer;
-                printf("[Voiture %d] Demande : structure=%d type=%d dir=%c\n",
-                       d->id_voiture, d->structure_id, d->type_operation, d->direction);
+                enqueue_demande(d);
+                gerer_demande(v->id_voiture);
                 break;
             }
             case MESSAGE_FIN: {

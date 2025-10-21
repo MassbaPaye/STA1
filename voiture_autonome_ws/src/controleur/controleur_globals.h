@@ -24,9 +24,16 @@ typedef struct {
     struct timespec itineraire_last_update;
 } Voiture;
 
+/* ==== État Structure ==== */
+typedef struct {
+    int id;
+    int etat;   //0 = libre, 1 = utilisé
+} EtatStructure;
+
 /* ==== Variables globales ==== */
 extern Voiture voitures[MAX_VOITURES];
 extern Queue demandes_queue;
+extern EtatStructure structure[MAX_STRUCTURE];
 
 /* ==== Fonctions d'accès aux variables des voitures ==== */
 

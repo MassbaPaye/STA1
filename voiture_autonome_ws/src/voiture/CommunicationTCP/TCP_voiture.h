@@ -4,7 +4,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-
 #include "messages.h"
 
 extern int sockfd;         // socket associée à la voiture

@@ -9,7 +9,8 @@
 #include "main_localisation.h"
 #include "main_module_exemple.h"
 #include "messages.h"
-#include "communication_tcp.h"
+#include "communication_tcp_voiture.h"
+#include "communication_serie.h"
 
 #define TAG "main"
 
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
         perror("Erreur pthread_create lancer communication serie");
         return EXIT_FAILURE;
     }
+
     // Attente de la connexion
     printf("En attente de la connexion avec le contrôleur...\n");
     while (!est_connectee()) {

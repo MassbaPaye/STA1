@@ -15,7 +15,7 @@
 #include "TCP_voiture.h"
 #include "logger.h"
 
-#define TAG "communication TCP"
+#define TAG "communication_tcp_voiture"
 
 int sockfd = -1;
 pthread_t tid_rcv = -1;
@@ -58,7 +58,7 @@ void* receive_thread() {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
                 printf("[Client] Consigne reçue : structure %d -> %s\n",
-                       c->id_structure,
+                       c->structure_id,
                        c->autorisation == CONSIGNE_AUTORISATION ? "AUTORISATION" : "ATTENTE");
                 break;
             }

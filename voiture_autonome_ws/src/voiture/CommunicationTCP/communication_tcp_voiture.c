@@ -6,10 +6,10 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "TCP_voiture.h"
-#include "communication_tcp.h"
+#include "communication_tcp_voiture.h"
 #include "logger.h"
 
-#define TAG "communication_tcp"
+#define TAG "communication_tcp_voiture"
 
 atomic_int voiture_connectee = 0;
 

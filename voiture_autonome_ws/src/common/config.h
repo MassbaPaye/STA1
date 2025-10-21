@@ -17,6 +17,7 @@
 // === Paramètres système ===
 #define MAX_VOITURES 2 // Nombre de voiture maximal qui peuvent etre géré par le controleur
 #define MAX_VITESSE 100 // [mm/s]
+#define MAX_STRUCTURE 3
 
 
 // === Paramètres Types/Messages ===
