@@ -28,14 +28,14 @@ void* thread_periodique(void* arg) {
     int a = 0;
 
     while (1) {
-        pos.x = 0;
-        pos.y = 0;
-        pos.z = 0;
-        pos.theta = 0;
-        pos.vx = 0;
-        pos.vy = 0;
-        pos.vz = 0;
-//        sendPositionVoiture(&pos);
+        pos.x = a;
+        pos.y = a;
+        pos.z = a;
+        pos.theta = a;
+        pos.vx = a;
+        pos.vy = a;
+        pos.vz = a;
+        sendMessage(MESSAGE_POSITION, &pos);
         a += 1;
         sleep(3); // attend 3 secondes
     }
@@ -72,11 +72,7 @@ int main(int argc, char *argv[]) {
         perror("Erreur pthread_create lancer communication serie");
         return EXIT_FAILURE;
     }
-    pthread_t tid;
-    if (pthread_create(&tid, NULL, thread_periodique, NULL) != 0) {
-        perror("Erreur pthread_create lancer communication serie");
-        return EXIT_FAILURE;
-    }
+
     // Attente de la connexion
     printf("En attente de la connexion avec le contrôleur...\n");
     while (!est_connectee()) {
@@ -94,6 +90,11 @@ int main(int argc, char *argv[]) {
     }
     #endif
 
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, thread_periodique, NULL) != 0) {
+        perror("Erreur pthread_create lancer communication serie");
+        return EXIT_FAILURE;
+    }
 
     /* // code module exemple
     exemple_module("Message du module d'exemple");
