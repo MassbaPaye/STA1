@@ -4,7 +4,7 @@
 
 // === Configuration réseau du controleur ===
 #define TCP_PORT              5000
-#define CONTROLEUR_IP         "10.121.239.170"
+#define CONTROLEUR_IP         "127.0.0.1"
 
 
 // === Configuration des ports USB ===

@@ -12,14 +12,16 @@
 #include "messages.h"
 #include "communication_tcp_voiture.h"
 #include "communication_serie.h"
+#include "simulation_loc.h"
 
 #define TAG "main"
 
 pthread_t thread_localisation;
 pthread_t thread_communication_tcp;
 pthread_t thread_communication_serie;
+#ifdef SIMULATION
 pthread_t thread_simulation;
-
+#endif
 
 int main(int argc, char *argv[]) {
     
@@ -57,7 +59,9 @@ int main(int argc, char *argv[]) {
     while (!est_connectee()) {
         sleep(1);
     }
-    INFO(TAG, "Communication TCP établie\n");
+    INFO(TAG, "=============================");
+    INFO(TAG, "= Communication TCP établie =");
+    INFO(TAG, "=============================");
     
     #ifdef SIMULATION
     // Lancement de la simulation

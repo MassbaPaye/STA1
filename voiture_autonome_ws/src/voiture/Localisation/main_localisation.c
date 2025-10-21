@@ -11,10 +11,10 @@
 #include "config.h"
 #include "utils.h"
 
-#define TAG "localisation"
+#define TAG "loc-main"
 
 
-#define LOCALISATION_FREQ_HZ 10
+#define LOCALISATION_FREQ_HZ 3
 #define LOCALISATION_DT (1.0 / LOCALISATION_FREQ_HZ)
 
 bool running = false;

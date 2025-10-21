@@ -58,6 +58,7 @@ static void* thread_read(void* arg) {
 }
 
 void* lancer_communication_serie() {
+    INFO(TAG, "Thread communication série démarré");
     
     if (strcmp(megapi_port, "stdin") == 0) {
         fd_serial = 0;
