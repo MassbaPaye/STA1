@@ -1,9 +1,10 @@
 #include <stdlib.h>
 #include "messages.h"
 #include "controleur_globals.h"
+#include "controleur_routier.h"
 #include "communication_tcp_controleur.h"
 
-void gerer_demande(int Id){
+void gerer_demande(int id){
     Demande *d = malloc(sizeof(Demande));
     Consigne *c = malloc(sizeof(Consigne));
     while (size_demande_queue() > 0){
@@ -11,14 +12,14 @@ void gerer_demande(int Id){
         if (d->type_operation == 1){
             if ( structure[d->structure_id].etat == 0 ){
                 structure[d->structure_id].etat = 1;
-                structure[d->structure_id].id = Id;
+                structure[d->structure_id].id = id;
                 c->structure_id = d->structure_id;
                 c->autorisation = 0;
-                sendConsigne(Id, c);
+                sendConsigne(id, c);
             } else {
                 c->structure_id = d->structure_id;
                 c->autorisation = 1;
-                sendConsigne(Id, c);
+                sendConsigne(id, c);
             }
         }
         if (d->type_operation == 0){

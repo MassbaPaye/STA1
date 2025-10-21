@@ -23,8 +23,8 @@ pthread_t thread_communication_serie;
 pthread_t thread_simulation;
 #endif
 
+PositionVoiture pos;
 void* thread_periodique(void* arg) {
-    PositionVoiture pos;
     int a = 0;
 
     while (1) {
@@ -35,7 +35,11 @@ void* thread_periodique(void* arg) {
         pos.vx = 0;
         pos.vy = 0;
         pos.vz = 0;
-//        sendPositionVoiture(&pos);
+        printf("envoie position");
+        //sendPositionVoiture(&pos);
+        printf("apres envoie position");
+        fflush(stdin);
+
         a += 1;
         sleep(3); // attend 3 secondes
     }

@@ -15,7 +15,8 @@ atomic_int voiture_connectee = 0;
 
 /* --- Fonctions utilitaires internes --- */
 static int sendBuffer(const void* buffer, size_t size) {
-    printf("sock = %d", connexion_tcp.sockfd);
+    printf("sock = %d, \n", connexion_tcp.sockfd);
+
     return send(connexion_tcp.sockfd, buffer, size, 0);
 }
 

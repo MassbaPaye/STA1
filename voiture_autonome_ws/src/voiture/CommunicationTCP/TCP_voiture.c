@@ -112,7 +112,10 @@ int recvFin(char* buffer, size_t max_size) {
 
 int recvMessage(MessageType* type, void* message) {
     // lire le type
+    printf("Avant recvbuffer\n");
     int n = recvBuffer( type, sizeof(MessageType));
+    printf("n = %d\n", n);
+    fflush(stdin);
     if (n <= 0) {
         perror("Erreur recvBuffer");
         return -1;  // ou gérer la déconnexion
