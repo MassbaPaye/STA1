@@ -20,6 +20,24 @@ pthread_t thread_communication_tcp;
 pthread_t thread_communication_serie;
 pthread_t thread_simulation;
 
+void* thread_periodique(void* arg) {
+    PositionVoiture *pos =  malloc(sizeof(PositionVoiture));
+    int a = 0;
+
+    while (1) {
+        pos->x = 0;
+        pos->y = 0;
+        pos->z = 0;
+        pos->theta = 0;
+        pos->vx = 0;
+        pos->vy = 0;
+        pos->vz = 0;
+        sendPositionVoiture(pos);
+        a += 1;
+        sleep(3); // attend 3 secondes
+    }
+    return NULL;
+}
 
 int main(int argc, char *argv[]) {
     

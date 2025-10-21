@@ -14,36 +14,36 @@
 atomic_int voiture_connectee = 0;
 
 /* --- Fonctions utilitaires internes --- */
-static int sendBuffer(int sockfd, const void* buffer, size_t size) {
-    return send(sockfd, buffer, size, 0);
+static int sendBuffer(const void* buffer, size_t size) {
+    return send(connexion_tcp.sockfd, buffer, size, 0);
 }
 
 /* === Fonctions spécialisées === */
 
-int sendPositionVoiture(int sockfd, const PositionVoiture* pos) {
-    return sendBuffer(sockfd, pos, sizeof(PositionVoiture));
+int sendPositionVoiture(const PositionVoiture* pos) {
+    return sendBuffer(pos, sizeof(PositionVoiture));
 }
 
-int sendDemande(int sockfd, const Demande* dem) {
-    return sendBuffer(sockfd, dem, sizeof(Demande));
+int sendDemande(const Demande* dem) {
+    return sendBuffer(dem, sizeof(Demande));
 }
 
-int sendFin(int sockfd) {
+int sendFin() {
     const char* texte = "fin";
     size_t len = strlen(texte) + 1; // inclure le '\0'
-    return sendBuffer(sockfd, texte, len);
+    return sendBuffer( texte, len);
 }
 
 /* === Fonctions génériques === */
 
-int sendMessage(int sockfd, MessageType type, void* message) {
+int sendMessage(MessageType type, void* message) {
     // envoyer d’abord le type
-    sendBuffer(sockfd, &type, sizeof(MessageType));
+    sendBuffer(&type, sizeof(MessageType));
 
     switch (type) {
-        case MESSAGE_POSITION:   return sendPositionVoiture(sockfd, (PositionVoiture*)message);
-        case MESSAGE_DEMANDE:    return sendDemande(sockfd, (Demande*)message);
-        case MESSAGE_FIN:         return sendFin(sockfd);
+        case MESSAGE_POSITION:   return sendPositionVoiture( (PositionVoiture*)message);
+        case MESSAGE_DEMANDE:    return sendDemande((Demande*)message);
+        case MESSAGE_FIN:         return sendFin();
         default: return -1;
     }
 }

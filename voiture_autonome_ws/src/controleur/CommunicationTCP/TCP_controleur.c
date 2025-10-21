@@ -101,7 +101,9 @@ void* receive_thread(void* arg) {
         switch(type) {
             case MESSAGE_POSITION: {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
-                set_voiture_position(v->id_voiture, pos, true);
+                set_voiture_position(v->id_voiture, pos);
+                get_voiture_position(v->id_voiture, pos);
+                printf("x = %f, y = %f, z = %f", pos->x, pos->y, pos->z);
                 break;
             }
             case MESSAGE_DEMANDE: {
