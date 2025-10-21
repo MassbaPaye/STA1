@@ -15,6 +15,7 @@ atomic_int voiture_connectee = 0;
 
 /* --- Fonctions utilitaires internes --- */
 static int sendBuffer(const void* buffer, size_t size) {
+    printf("sock = %d", connexion_tcp.sockfd);
     return send(connexion_tcp.sockfd, buffer, size, 0);
 }
 
@@ -97,6 +98,7 @@ void* initialisation_communication_voiture(void* arg) {
             }
 
             pthread_mutex_lock(&connexion_tcp.mutex);
+            printf("sockfd1 = %d", connexion_tcp.sockfd);
             connexion_tcp.sockfd = sock;
             connexion_tcp.voiture_connectee = true;
             // Lancement du thread de réception si pas déjà lancé
