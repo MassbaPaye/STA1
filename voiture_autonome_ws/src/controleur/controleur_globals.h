@@ -31,18 +31,18 @@ extern Queue demandes_queue;
 /* ==== Fonctions d'accès aux variables des voitures ==== */
 
 // Etat
-int set_voiture_etat(int id, const EtatVoiture* etat, bool blocking);
-int get_voiture_etat(int id, EtatVoiture* etat, bool blocking);
+int set_voiture_etat(int id, const EtatVoiture* etat);
+int get_voiture_etat(int id, EtatVoiture* etat);
 struct timespec get_voiture_etat_last_update(int id);
 
 // Position
-int set_voiture_position(int id, const PositionVoiture* pos, bool blocking);
-int get_voiture_position(int id, PositionVoiture* pos, bool blocking);
+int set_voiture_position(int id, const PositionVoiture* pos);
+int get_voiture_position(int id, PositionVoiture* pos);
 struct timespec get_voiture_position_last_update(int id);
 
 // Itineraire
-int set_voiture_itineraire(int id, const Itineraire* itin, bool blocking);
-int get_voiture_itineraire(int id, Itineraire* itin, bool blocking);
+int set_voiture_itineraire(int id, const Itineraire* itin);
+int get_voiture_itineraire(int id, Itineraire* itin);
 struct timespec get_voiture_itineraire_last_update(int id);
 
 /* ==== Fonctions pour la queue globale ==== */
