@@ -14,3 +14,4 @@ int sendFin(int Id);
 void afficher_voitures_connectees();
 
 void* initialisation_communication_controleur(void* arg);
+void* test_thread(void* arg);

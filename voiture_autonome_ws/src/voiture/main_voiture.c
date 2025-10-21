@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <time.h>
+#include "utils.h"
 #include "logger.h"
 #include "config.h"
 #include "voiture_globals.h"

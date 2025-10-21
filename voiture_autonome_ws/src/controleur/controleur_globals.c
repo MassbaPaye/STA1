@@ -1,6 +1,7 @@
 // Ce fichier contient uniquement les variables globales propres au processus "controleur". 
 // Aucune donnée n'est partagée avec le processus "voiture".
 
+#include "utils.h"
 #include "controleur_globals.h"
 #include <string.h>
 #include <stdio.h>
@@ -32,24 +33,20 @@ void init_controleur_globals(void) {
     }
 }
 
-/* ==== Fonctions génériques de set/get ==== */
-static int lock_mutex(pthread_mutex_t* mtx, bool blocking) {
-    return blocking ? pthread_mutex_lock(mtx) : pthread_mutex_trylock(mtx);
-}
 
 /* ==== Etat ==== */
-int set_voiture_etat(int id, const EtatVoiture* etat, bool blocking) {
+int set_voiture_etat(int id, const EtatVoiture* etat) {
     if (!etat || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].etat = *etat;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].etat_last_update);
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }
 
-int get_voiture_etat(int id, EtatVoiture* etat, bool blocking) {
+int get_voiture_etat(int id, EtatVoiture* etat) {
     if (!etat || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     *etat = voitures[id].etat;
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
@@ -66,18 +63,18 @@ struct timespec get_voiture_etat_last_update(int id) {
 
 
 /* ==== Position ==== */
-int set_voiture_position(int id, const PositionVoiture* pos, bool blocking) {
+int set_voiture_position(int id, const PositionVoiture* pos) {
     if (!pos || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].position = *pos;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].position_last_update);
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }
 
-int get_voiture_position(int id, PositionVoiture* pos, bool blocking) {
+int get_voiture_position(int id, PositionVoiture* pos) {
     if (!pos || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     *pos = voitures[id].position;
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
@@ -93,18 +90,18 @@ struct timespec get_voiture_position_last_update(int id) {
 }
 
 /* ==== Itineraire ==== */
-int set_voiture_itineraire(int id, const Itineraire* itin, bool blocking) {
+int set_voiture_itineraire(int id, const Itineraire* itin) {
     if (!itin || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].itineraire = *itin;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].itineraire_last_update);
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }
 
-int get_voiture_itineraire(int id, Itineraire* itin, bool blocking) {
+int get_voiture_itineraire(int id, Itineraire* itin) {
     if (!itin || id < 0 || id >= MAX_VOITURES) return -1;
-    if (lock_mutex(&voitures[id].mutex, blocking) != 0) return -1;
+    pthread_mutex_lock(&voitures[id].mutex);
     *itin = voitures[id].itineraire;
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;

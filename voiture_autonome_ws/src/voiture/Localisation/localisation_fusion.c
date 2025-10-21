@@ -1,8 +1,8 @@
-#define _POSIX_C_SOURCE 199309L
+
+#include "utils.h"
 #include "localisation_fusion.h"
 #include "logger.h"
 #include "config.h"
-#include "utils.h"
 #include <math.h>
 
 #define TAG "loc-fusion"
@@ -25,8 +25,8 @@ PositionOdom calculer_odometrie(void) {
     struct timespec t_last, t_now;
     PositionOdom odom = {0};
 
-    if (get_sensor_data(&sdata, true) != 0 ||
-        get_position(&last_pos, true) != 0) {
+    if (get_sensor_data(&sdata) != 0 ||
+        get_position(&last_pos) != 0) {
         ERR(TAG, "Impossible de récupérer sensor_data ou position_voiture");
         return odom;
     }

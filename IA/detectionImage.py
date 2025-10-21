@@ -18,8 +18,8 @@ Installation (venv) :
   pip install ultralytics torch torchvision
 
 Exemples :
-  # Webcam avec modèle TFLite
-  python3 detectionImage.py --source 0 --weights best_int8.tflite --img 320 --conf 0.25
+  # Webcam avec le modèle TFLite exporté (défaut fourni)
+  python3 detectionImage.py --source 0 --img 320 --conf 0.25
 
   # Vidéo + seuil de confiance + classes (ids séparés par virgules)
   python3 detectionImage.py --source video.mp4 --weights best.tflite --conf 0.35 --img 416 --classes 0,1
@@ -55,11 +55,25 @@ except Exception:  # macOS etc.
         raise e
 
 # Optionnel: support Ultralytics (.pt) pour l'inférence PyTorch sur desktop
-try:
-    from ultralytics import YOLO as _YOLO
-except Exception:
-    _YOLO = None
+from ultralytics import YOLO as _YOLO
 
+
+# Modèle TFLite exporté localement par défaut
+DEFAULT_TFLITE_WEIGHTS = Path(__file__).resolve().parent.parent / "models" / "best_saved_model" / "best_float32.tflite"
+
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
+
+CLASS_NAMES = {
+    0: "obstacle_voiture",
+    1: "panneau-limitation30",
+    2: "panneau_barriere",
+    3: "panneau_ceder_passage",
+    4: "panneau_fin30",
+    5: "panneau_intersection",
+    6: "panneau_parking",
+    7: "panneau_sens_unique",
+    8: "pont",
+}
 
 # ------------------------- Utilitaires -------------------------
 
@@ -83,7 +97,7 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114)):
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     img_padded = cv2.copyMakeBorder(img_resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
     ratio = (r, r)
-    dwdh = (left, top)
+    dwdh = (dw, dh)
     return img_padded, ratio, dwdh
 
 
@@ -119,6 +133,7 @@ class TFLiteYOLO:
         self.imgsz = int(imgsz)
         self.conf = float(conf)
         self.iou = float(iou)
+        self.debug_raw = False
 
         self.interpreter = tflite.Interpreter(model_path=str(weights))
         self.interpreter.allocate_tensors()
@@ -144,6 +159,13 @@ class TFLiteYOLO:
         if pred.ndim != 2:
             raise RuntimeError(f"Sortie inattendue du modèle TFLite: shape={pred.shape}")
 
+        if self.debug_raw and not hasattr(self, '_debug_dumped'):
+            print(f"[DEBUG] TFLite raw shape={pred.shape}, min={pred.min():.4f}, max={pred.max():.4f}")
+            print("[DEBUG] Exemple (5 premières lignes):")
+            for row in pred[:5]:
+                print("  ", " ".join(f"{v:0.3f}" for v in row[:10]))
+            self._debug_dumped = True
+
         # Détecter si un logit d'objectness est présent
         # Heuristique : si C >= 6 et les colonnes après 5 ressemblent à des scores de classes
         if pred.shape[1] >= 6:
@@ -159,12 +181,14 @@ class TFLiteYOLO:
             cls_scores = cls
 
         scores = cls_scores.max(axis=1)
-        class_ids = cls_scores.argmax(axis=1)
+        class_probs = cls_scores
+        class_ids = class_probs.argmax(axis=1)
 
         # Filtrer par confiance
         keep = scores >= self.conf
         xywh = xywh[keep]
         scores = scores[keep]
+        class_probs = class_probs[keep]
         class_ids = class_ids[keep]
 
         # Filtre de classes
@@ -172,6 +196,7 @@ class TFLiteYOLO:
             m = np.isin(class_ids, np.array(class_filter, dtype=int))
             xywh = xywh[m]
             scores = scores[m]
+            class_probs = class_probs[m]
             class_ids = class_ids[m]
 
         # Convertir xywh (sur image padded) -> xyxy pixels
@@ -210,7 +235,8 @@ class TFLiteYOLO:
         detections = []  # liste de tuples (x1,y1,x2,y2,score,cls_id)
         for i in keep_idx:
             xx1, yy1, ww, hh = boxes_xywh[i]
-            detections.append((int(xx1), int(yy1), int(xx1 + ww), int(yy1 + hh), float(scores_list[i]), int(class_ids[i])))
+            cls_id = int(class_ids[i]) if class_ids.size else 0
+            detections.append((int(xx1), int(yy1), int(xx1 + ww), int(yy1 + hh), float(scores_list[i]), cls_id))
         return detections
 
 
@@ -265,29 +291,67 @@ def create_detector(weights: Path, imgsz: int, conf: float, iou: float, threads:
     raise ValueError(f"Extension de poids non supportée: {ext}. Utilise .tflite ou .pt")
 
 
+def draw_detections(frame: np.ndarray, dets, fps: float | None = None):
+    """Dessine les boîtes + labels sur une copie de l'image source."""
+    annotated = frame.copy()
+    for x1, y1, x2, y2, score, cid in dets:
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
+        label_name = CLASS_NAMES.get(cid)
+        if label_name:
+            label = f"{label_name} {score:.2f}"
+        else:
+            label = f"{cid} {score:.2f}"
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 0, 0), -1)
+        cv2.putText(annotated, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+    if fps is not None:
+        cv2.putText(annotated, f"FPS: {fps:5.1f}", (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 220, 0), 2, cv2.LINE_AA)
+    return annotated
+
+
 # ------------------------- Programme principal -------------------------
 
 def parse_args():
-    ap = argparse.ArgumentParser(description="Détection YOLO TFLite (webcam/vidéo)")
-    ap.add_argument('--source', default='0', help='Index caméra (0,1,...) ou chemin vidéo')
-    ap.add_argument('--weights', type=Path, required=True, help='Chemin vers le modèle TFLite (.tflite)')
+    ap = argparse.ArgumentParser(description="Détection YOLO TFLite (webcam/vidéo/image)")
+    ap.add_argument('--source', default='0', help='Index caméra (0,1,...) ou chemin vidéo/image')
+    ap.add_argument(
+        '--weights',
+        type=Path,
+        default=DEFAULT_TFLITE_WEIGHTS,
+        help=f'Chemin vers le modèle (.tflite ou .pt). Défaut: {DEFAULT_TFLITE_WEIGHTS}',
+    )
     ap.add_argument('--conf', type=float, default=0.25, help='Seuil de confiance')
     ap.add_argument('--img', type=int, default=640, help="Taille d'entrée (côté long)")
     ap.add_argument('--iou', type=float, default=0.45, help='Seuil IOU pour NMS')
     ap.add_argument('--classes', type=str, default='', help="Filtre classes par IDs (ex: '0' ou '0,1')")
     ap.add_argument('--max-fps', type=float, default=0.0, help='Limiter les FPS (0 = illimité)')
     ap.add_argument('--device', type=str, default='', help="Device pour Ultralytics .pt (cpu, cuda, mps)")
+    ap.add_argument('--debug-raw', action='store_true', help="Afficher la sortie brute du modèle (diagnostic)")
+    ap.add_argument('--no-show', action='store_true', help="Ne pas ouvrir de fenêtre d'affichage (diagnostic/headless)")
+    ap.add_argument('--print-dets', action='store_true', help="Afficher les objets détectés dans le terminal")
     return ap.parse_args()
 
 
 def open_source(src):
-    if str(src).isdigit() and len(str(src)) < 3:
-        cap = cv2.VideoCapture(int(src))
-    else:
-        cap = cv2.VideoCapture(str(src))
+    src_str = str(src)
+    if src_str.isdigit() and len(src_str) < 3:
+        cap = cv2.VideoCapture(int(src_str))
+        if not cap.isOpened():
+            raise RuntimeError(f"Impossible d'ouvrir la source caméra: {src}")
+        return cap, False
+
+    path = Path(src_str).expanduser()
+    if path.exists() and path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
+        img = cv2.imread(str(path))
+        if img is None:
+            raise RuntimeError(f"Impossible de lire l'image: {path}")
+        return img, True
+
+    probe = str(path if path.exists() else src_str)
+    cap = cv2.VideoCapture(probe)
     if not cap.isOpened():
         raise RuntimeError(f"Impossible d'ouvrir la source: {src}")
-    return cap
+    return cap, False
 
 
 def main():
@@ -295,12 +359,38 @@ def main():
 
     # Prépare le modèle (TFLite ou Ultralytics .pt)
     detector = create_detector(weights=args.weights, imgsz=args.img, conf=args.conf, iou=args.iou, threads=1, device=(args.device or None))
+    if args.debug_raw and hasattr(detector, 'debug_raw'):
+        detector.debug_raw = True
 
     # Ouvre la source
-    cap = open_source(args.source)
+    source_obj, is_image = open_source(args.source)
 
     class_filter = parse_class_filter(args.classes)
 
+    window_name = 'TFLite – Detection panneaux'
+
+    if is_image:
+        frame = source_obj
+        dets = detector.infer(frame, class_filter=class_filter)
+        if args.print_dets:
+            if dets:
+                formatted = [
+                    f"{CLASS_NAMES.get(cid, cid)} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
+                    for x1, y1, x2, y2, score, cid in dets
+                ]
+                print(f"[DETECTIONS] {len(dets)} -> " + "; ".join(formatted))
+            else:
+                print("[DETECTIONS] Aucun objet détecté.")
+        if args.no_show:
+            print(f"[INFO] {len(dets)} détections sur l'image.")
+        else:
+            annotated = draw_detections(frame, dets, fps=None)
+            cv2.imshow(window_name, annotated)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        return
+
+    cap = source_obj
     paused = False
     t_prev = time.time()
     fps_ma = 0.0
@@ -313,14 +403,15 @@ def main():
                 break
 
             dets = detector.infer(frame, class_filter=class_filter)
-
-            annotated = frame.copy()
-            for x1, y1, x2, y2, score, cid in dets:
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
-                label = f"{cid} {score:.2f}"  # Si tu as un mapping id->nom, remplace cid par le nom
-                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 0, 0), -1)
-                cv2.putText(annotated, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            if args.print_dets:
+                if dets:
+                    formatted = [
+                        f"{CLASS_NAMES.get(cid, cid)} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
+                        for x1, y1, x2, y2, score, cid in dets
+                    ]
+                    print(f"[DETECTIONS] {len(dets)} -> " + "; ".join(formatted))
+                else:
+                    print("[DETECTIONS] 0 objet détecté.")
 
             # FPS (moyenne mobile)
             now = time.time()
@@ -329,16 +420,20 @@ def main():
             if dt > 0:
                 inst = 1.0 / dt
                 fps_ma = alpha * fps_ma + (1 - alpha) * inst
-            cv2.putText(annotated, f"FPS: {fps_ma:5.1f}", (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 220, 0), 2, cv2.LINE_AA)
+            annotated = draw_detections(frame, dets, fps=fps_ma)
         else:
             annotated = frame
 
-        cv2.imshow('TFLite – Detection panneaux', annotated)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        if key == ord('p'):
-            paused = not paused
+        if args.no_show:
+            print(f"[FRAME] dets={len(dets)} fps={fps_ma:0.2f}")
+            key = None
+        else:
+            cv2.imshow(window_name, annotated)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+            if key == ord('p'):
+                paused = not paused
         if args.max_fps and args.max_fps > 0:
             time.sleep(max(0.0, (1.0 / args.max_fps) - (time.time() - t_prev)))
 

@@ -111,11 +111,11 @@ void* receive_thread(void* arg) {
                 break;
             }
             case MESSAGE_FIN: {
-                printf("[Voiture %d] a envoyé MESSAGE_FIN : %s\n", v->id_voiture, buffer);
+                printf("[Voiture i] a envoyé MESSAGE_FIN : %s\n", buffer);
                 goto fin_connexion; // sortir de la boucle et nettoyer
             }
             default:
-                printf("[Voiture %d] Message type %d ignoré.\n", v->id_voiture, type);
+                printf("[Voiture i] Message type %d ignoré.\n", type);
                 break;
         }
     }
@@ -149,7 +149,7 @@ void deconnecter_voiture(VoitureConnection* v) {
 
     free(v);
 }
-/*
+
 /* === Boucle interactive === */
 /*
 void* boucle_interactive(void* arg) {

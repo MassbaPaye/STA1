@@ -11,6 +11,15 @@
 #define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
 
+void* test_thread(void* arg) {
+    (void)arg;
+    while (1) {
+        afficher_voitures_connectees();
+        sleep(10);
+    }
+    return NULL;
+}
+
 /* === Communication bas niveau === */
 static int sendBuffer(int Id, const void* buffer, size_t size) {
     VoitureConnection* v = get_voiture_by_id(Id);

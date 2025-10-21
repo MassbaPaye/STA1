@@ -1,5 +1,5 @@
 #ifdef SIMULATION
-#define _POSIX_C_SOURCE 199309L
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -8,7 +8,6 @@
 #include "voiture_globals.h"
 #include "marvelmind_manager.h"
 #include "config.h"
-#include "utils.h"
 #include "logger.h"
 
 #define TAG "simulateur"

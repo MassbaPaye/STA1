@@ -70,7 +70,7 @@ void deconnecter_controleur() {
     INFO(TAG, "Voiture déconnecté proprement du contrôleur");
 }
 
-void* initialisation_communication_voiture() {
+void* initialisation_communication_voiture(void* arg) {
 
     while (1) {
         pthread_mutex_lock(&connexion_tcp.mutex);
