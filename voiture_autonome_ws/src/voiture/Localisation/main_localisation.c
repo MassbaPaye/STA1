@@ -54,14 +54,15 @@ void update_localisation_ponderation()
 }
 
 
-void* lancer_localisation_thread() {
+void* lancer_localisation_thread(void* arg) {
+    (void)arg;
     running = true;
 
     INFO(TAG, "Thread de localisation démarré.");
 
 
     if (USE_MARVELMIND) {
-        if (start_marvelmind(marvelmind_port) != 0) {
+        if (lancer_marvelmind() != 0) {
             ERR(TAG, "Impossible de démarrer le module Marvelmind.");
             return NULL;
         }

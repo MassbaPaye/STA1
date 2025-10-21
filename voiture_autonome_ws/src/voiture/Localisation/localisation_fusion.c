@@ -56,7 +56,7 @@ MarvelmindPosition mettre_a_jour_marvelmind_estimee(const PositionOdom* odom) {
     struct timespec t_now;
     clock_gettime(CLOCK_MONOTONIC, &t_now);
 
-    MarvelmindPosition mm_new_pos = get_marvelmind_position();
+    MarvelmindPosition mm_new_pos = get_marvelmind_position(true);
 
     // (1) Initialisation ou fusion si nouvelle mesure valide
     if (mm_new_pos.valid) {

@@ -10,10 +10,11 @@ typedef struct {
     float z;
     struct timespec t;
     bool valid;
+    bool is_new;
 } MarvelmindPosition;
 
 // Démarre le thread Marvelmind (retourne 0 si OK)
-int start_marvelmind();
+int lancer_marvelmind();
 
 // Arrête le thread et ferme la connexion
 void stop_marvelmind();
@@ -23,7 +24,7 @@ void stop_marvelmind();
 int wait_for_position(int timeout_sec);
 
 // Renvoie la dernière position enregistrée 
-MarvelmindPosition get_marvelmind_position();
+MarvelmindPosition get_marvelmind_position(bool change_to_read);
 void _set_marvelmind_position(MarvelmindPosition pos);
 
 #endif // MARVELMIND_MANAGER_H
