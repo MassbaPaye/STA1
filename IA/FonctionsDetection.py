@@ -1,8 +1,13 @@
+import argparse
 import cv2
 import os
 import glob
 import time
 import struct
+import math
+import json
+import socket
+from dataclasses import dataclass, asdict
 
 # Ajouts pour la détection TFLite
 from functools import lru_cache
@@ -15,21 +20,42 @@ try:
 except Exception:
     Picamera2 = None  # Picamera2 n'est disponible que sur Raspberry Pi / libcamera
 
-# Modèle TFLite exporté localement (chemin par défaut vers best.pt)
-DEFAULT_TFLITE_WEIGHTS = Path(__file__).resolve().parent.parent / "models" / "best.pt"
-# Exemple de point (x, y)
-class Point:
-    def __init__(self, x: int, y: int):
-        self.x = int(x)
-        self.y = int(y)
-        self.z = 0
-        self.theta = 0.0
+# Modèle TFLite exporté localement (chemin par défaut vers best_float32.tflite)
+DEFAULT_TFLITE_WEIGHTS = (
+    Path(__file__).resolve().parent.parent / "models" / "best_saved_model" / "best_float32.tflite"
+)
 
+CLASS_NAMES = {
+    0: "OBSTACLE_VOITURE",
+    1: "PANNEAU_LIMITATION_30",
+    2: "PANNEAU_BARRIERE",
+    3: "PANNEAU_CEDER_PASSAGE",
+    4: "PANNEAU_FIN30",
+    5: "PANNEAU_INTERSECTION",
+    6: "PANNEAU_PARKING",
+    7: "PANNEAU_SENS_UNIQUE",
+    8: "PONT",
+}
+
+@dataclass
+class Point:
+    x: float
+    y: float
+    z: float = 0.0
+    theta: float = 0.0
+
+
+@dataclass
 class Obstacle:
-    def __init__(self, type_id: int, pointd: Point, pointg: Point, pointg_x: int, pointg_y: int):
-        self.type_id = type_id
-        self.pointd = pointd
-        self.pointg = pointg
+    label: str
+    point_left: Point
+    point_right: Point
+    confidence: float
+    class_id: int
+
+CAMERA_HORIZONTAL_FOV_DEG = 70.0
+# Vertical FOV optionally used for future extensions
+CAMERA_VERTICAL_FOV_DEG = 55.0
 
 
 # ------------------------- IMX500 – Acquisition brute -------------------------
@@ -57,7 +83,6 @@ def _resolve_imx500_resolution(resolution: str | Tuple[int, int]) -> Tuple[int, 
         w, h = res_lower.replace(" ", "").split("x", 1)
         return int(w), int(h)
     raise ValueError(f"Résolution IMX500 inconnue: {resolution}")
-
 
 def imx500_open_camera(
     resolution: str | Tuple[int, int] = "2mp",
@@ -105,7 +130,6 @@ def imx500_open_camera(
         "controls": controls or {},
     }
     return picam2, info
-
 
 def imx500_capture_raw_array(
     picam2: Picamera2,
@@ -160,7 +184,6 @@ def imx500_capture_raw_array(
 
     return arr
 
-
 def imx500_iter_raw_frames(
     picam2: Picamera2,
     *,
@@ -180,7 +203,6 @@ def imx500_iter_raw_frames(
         count += 1
         if sleep > 0:
             time.sleep(sleep)
-
 
 def imx500_close_camera(picam2: Optional[Picamera2]) -> None:
     """
@@ -256,7 +278,6 @@ def _nms(boxes, scores, iou_thresh=0.45, top_k=300):
         order = order[inds + 1]
     return keep
 
-
 def _xywh2xyxy(xywh):
     # xywh -> xyxy
     x, y, w, h = xywh.T
@@ -301,6 +322,67 @@ def _list_tflite_candidates(max_n=8):
             uniq.append(c)
             seen.add(c)
     return uniq[:max_n]
+
+# --- Transformation pixel -> coordonnées normalisées ---
+
+def _pixel_to_signed_normalized(value: float, max_value: int) -> float:
+    """
+    Convertit un pixel en coordonnée normalisée [-1, 1] en prenant le centre
+    de l'image comme origine (0). -1 = bord gauche/haut, +1 = bord droit/bas.
+    """
+    if max_value <= 1:
+        return 0.0
+    return ((float(value) / float(max_value - 1)) * 2.0) - 1.0
+
+
+def _bbox_to_coordinate_points(
+    bbox: Tuple[int, int, int, int],
+    image_shape: Tuple[int, int, int],
+) -> Tuple[Point, Point]:
+    """
+    Transforme une bounding box (en pixels) en deux points normalisés.
+    Les coordonnées sont exprimées dans [-1, 1] pour x et y :
+      - x = -1 → bord gauche, +1 → bord droit
+      - y = -1 → haut, +1 → bas
+    On ajoute également une estimation simple de la profondeur (z) et de l'angle horizontal (theta).
+    """
+    h, w = image_shape[:2]
+    x1, y1, x2, y2 = bbox
+
+    # Clamp pour rester dans l'image
+    x1 = float(min(max(x1, 0), w - 1))
+    x2 = float(min(max(x2, 0), w - 1))
+    y1 = float(min(max(y1, 0), h - 1))
+    y2 = float(min(max(y2, 0), h - 1))
+
+    bottom_y = y2
+    center_x = (x1 + x2) / 2.0
+    center_y = (y1 + y2) / 2.0
+
+    # Coordonnées normalisées
+    left_point = Point(
+        x=_pixel_to_signed_normalized(x1, w),
+        y=_pixel_to_signed_normalized(bottom_y, h),
+    )
+    right_point = Point(
+        x=_pixel_to_signed_normalized(x2, w),
+        y=_pixel_to_signed_normalized(bottom_y, h),
+    )
+
+    # Profondeur approchée : plus la boîte est basse, plus elle est proche (valeur dans [-1,1])
+    depth = -_pixel_to_signed_normalized(bottom_y, h)
+
+    # Orientation : on projette le centre sur l'angle horizontal de la caméra
+    hfov_rad = math.radians(CAMERA_HORIZONTAL_FOV_DEG)
+    theta = _pixel_to_signed_normalized(center_x, w) * (hfov_rad / 2.0)
+
+    left_point.z = depth
+    right_point.z = depth
+    left_point.theta = theta
+    right_point.theta = theta
+
+    return left_point, right_point
+
 
 # --- Détecteur YOLOv8 TFLite autonome ---
 class TFLiteYOLO:
@@ -465,6 +547,13 @@ class TFLiteYOLO:
 @lru_cache(maxsize=3)
 def _load_tflite_detector_cached(weights_str: str, imgsz: int, conf: float, iou: float, threads: int):
     weights = Path(weights_str)
+    if not weights.exists():
+        raise FileNotFoundError(f"Poids TFLite introuvables: {weights}")
+    if weights.suffix.lower() != ".tflite":
+        raise ValueError(
+            f"Le fichier de poids fourni n'est pas un modèle TFLite: {weights}. "
+            "Spécifie un fichier .tflite via --weights."
+        )
     return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads)
 
 def _normalize_classes_arg(classes) -> Optional[List[int]]:
@@ -484,7 +573,7 @@ def detect_objects_tflite_from_image(
     iou: float = 0.45,
     threads: int = 2,
     classes=None
-) -> List[Dict[str, float]]:
+) -> List[Obstacle]:
     if not isinstance(image_bgr, np.ndarray):
         raise TypeError("image_bgr doit être un np.ndarray (image OpenCV BGR)")
     
@@ -495,66 +584,139 @@ def detect_objects_tflite_from_image(
 
     dets = detector.infer(image_bgr, class_filter=class_filter)
 
-    results: List[Dict[str, float]] = []
+    image_shape = image_bgr.shape
+    obstacles: List[Obstacle] = []
     for (x1, y1, x2, y2, score, cid) in dets:
-        results.append({
-            "class_id": int(cid),
-            "score": float(score),
-            "x1": int(x1),
-            "y1": int(y1),
-            "x2": int(x2),
-            "y2": int(y2),
-        })
-    return results
+        class_id = int(cid)
+        label = CLASS_NAMES.get(class_id, f"class_{class_id}")
+        point_left, point_right = _bbox_to_coordinate_points((x1, y1, x2, y2), image_shape)
+        obstacles.append(
+            Obstacle(
+                label=label,
+                point_left=point_left,
+                point_right=point_right,
+                confidence=float(score),
+                class_id=class_id,
+            )
+        )
+    return obstacles
 
-def transformationPixelVersCoordonnees(det):
-    #detsExemple=[{'class_id': 0, 'score': 0.7719968557357788, 'x1': 219, 'y1': 181, 'x2': 1653, 'y2': 1069}]
-    distance=CalculeDistanceFromPixel(det) # À définir
-    left=CalculeYFromPixel(det) # À définir
-    right=CalculeYFromPixel(det) # À définir
-    return Obstacle(
-        type_id=det["class_id"],
-        pointd=Point(distance, right),
-        pointg=Point(distance, left),
-        pointg_x=det["x1"],
-        pointg_y=det["y1"],
+
+def _build_obstacle_payload(obstacles: List[Obstacle]) -> Dict[str, object]:
+    obstacles_payload = []
+    for obs in obstacles:
+        obs_dict = asdict(obs)
+        obstacles_payload.append(obs_dict)
+    return {
+        "timestamp": time.time(),
+        "count": len(obstacles_payload),
+        "obstacles": obstacles_payload,
+    }
+
+
+def save_obstacles_to_json(
+    obstacles: List[Obstacle],
+    output_path: str | Path,
+    *,
+    ensure_ascii: bool = True,
+    indent: int | None = 2,
+) -> None:
+    """
+    Sérialise les obstacles détectés (coordonnées normalisées gauche/droite, label, classe, confiance) dans un fichier JSON.
+    """
+    output_path = Path(output_path).expanduser()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _build_obstacle_payload(obstacles)
+    with output_path.open("w", encoding="utf-8") as out:
+        json.dump(payload, out, ensure_ascii=ensure_ascii, indent=indent)
+
+
+def send_obstacles_udp(
+    obstacles: List[Obstacle],
+    host: str,
+    port: int,
+    *,
+    timeout: Optional[float] = None,
+) -> int:
+    """
+    Envoie la liste des obstacles détectés sur un socket UDP sous forme d'un message JSON unique.
+    Le message contient uniquement des coordonnées relatives (points gauche/droite normalisés), le label,
+    la classe numérique et la confiance associée.
+
+    Retourne le nombre d'octets envoyés. Lève RuntimeError en cas d'échec d'envoi.
+    """
+    if not host:
+        raise ValueError("Le paramètre 'host' ne peut pas être vide.")
+
+    payload = _build_obstacle_payload(obstacles)
+    data = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        if timeout is not None:
+            sock.settimeout(timeout)
+        sent = sock.sendto(data, (host, int(port)))
+    except OSError as exc:
+        raise RuntimeError(f"Echec d'envoi UDP vers {host}:{port}: {exc}") from exc
+    finally:
+        sock.close()
+    return sent
+
+
+def draw_detections_on_image(img: np.ndarray, obstacles: List[Obstacle]) -> None:
+    for obs in obstacles:
+        left = obs.point_left
+        right = obs.point_right
+        score = obs.confidence
+
+        h, w = img.shape[:2]
+        # Convertir [-1, 1] -> pixels
+        def _denorm(pt: Point) -> Tuple[int, int]:
+            x_px = int(((pt.x + 1.0) * 0.5) * (w - 1))
+            y_px = int(((pt.y + 1.0) * 0.5) * (h - 1))
+            return x_px, y_px
+
+        x1, y1 = _denorm(left)
+        x2, y2 = _denorm(right)
+
+        # Dessiner la base de l'obstacle (segment entre les deux points)
+        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.circle(img, (x1, y1), 4, (0, 255, 0), -1)
+        cv2.circle(img, (x2, y2), 4, (0, 255, 0), -1)
+
+        label_text = f"{obs.label} {score:.2f}"
+        text_origin_x = min(x1, x2)
+        text_origin_y = max(0, min(y1, y2) - 12)
+        cv2.putText(img, label_text, (text_origin_x, text_origin_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+
+def main():
+    """
+    Capture une image depuis une webcam, exécute la détection TFLite et sauvegarde les obstacles en JSON.
+    """
+    parser = argparse.ArgumentParser(description="Capture webcam et sauvegarde des obstacles détectés en JSON.")
+    parser.add_argument("--source", default="0", help="Index de webcam (ex: 0) ou chemin vidéo/image.")
+    parser.add_argument("--output", default="obstacles.json", help="Fichier de sortie JSON.")
+    parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS), help="Chemin vers les poids TFLite.")
+    parser.add_argument("--imgsz", type=int, default=640, help="Taille d'image d'entrée du modèle.")
+    parser.add_argument("--conf", type=float, default=0.25, help="Seuil de confiance.")
+    parser.add_argument("--iou", type=float, default=0.45, help="Seuil IOU pour NMS.")
+    parser.add_argument("--threads", type=int, default=2, help="Nombre de threads TFLite.")
+    args = parser.parse_args()
+
+    source = int(args.source) if str(args.source).isdigit() else args.source
+    frame = capture_image_from_source(source)
+    obstacles = detect_objects_tflite_from_image(
+        frame,
+        Path(args.weights),
+        imgsz=args.imgsz,
+        conf=args.conf,
+        iou=args.iou,
+        threads=args.threads,
     )
+    save_obstacles_to_json(obstacles, args.output)
+    print(f"{len(obstacles)} obstacle(s) enregistré(s) dans {args.output}")
 
-def draw_detections_on_image(img: np.ndarray, objs: List[Dict[str, float]]) -> None:
-    for det in objs:
-        x1, y1, x2, y2 = det["x1"], det["y1"], det["x2"], det["y2"]
-        class_id = det["class_id"]
-        score = det["score"]
-
-        # Sauter les boites degeneres (quasi nulles)
-        if (x2 - x1) < 2 or (y2 - y1) < 2:
-            continue
-
-        # Dessiner un rectangle vert
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        # Ajouter le label au-dessus de la boite
-        label = f"ID {class_id}: {score:.2f}"
-        cv2.putText(img, label, (x1, max(0, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
 if __name__ == "__main__":
-    img = capture_image_from_source(0)
-    picam2, info = imx500_open_camera(resolution="2mp", raw_format="SBGGR10", warmup=1.0)
-    raw = imx500_capture_raw_array(picam2, bit_depth=10)
-    imx500_close_camera(picam2)
-    raw16 = imx500_capture_raw_array(
-            picam2,
-            bit_depth=10,
-            target_bit_depth=16,
-            subtract_black_level=True,
-            black_level=64,
-        )
-    bgr = cv2.cvtColor(raw_16, cv2.COLOR_BAYER_BG2BGR)
-    objs = detect_objects_tflite_from_image(
-        bgr,
-        DEFAULT_TFLITE_WEIGHTS,
-        imgsz=640,
-        conf=0.25,
-        threads=3,
-    )
-    print(objs)
-    print("nb det:", len(objs))
+    main()
