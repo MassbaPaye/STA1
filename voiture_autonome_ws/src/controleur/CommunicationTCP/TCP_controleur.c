@@ -103,7 +103,7 @@ void* receive_thread(void* arg) {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
                 set_voiture_position(v->id_voiture, pos);
                 get_voiture_position(v->id_voiture, pos);
-                printf("x = %d, y = %d, z = %d \n", pos->x, pos->y, pos->z);
+                printf("x = %f, y = %f, z = %f \n", pos->x, pos->y, pos->z);
                 break;
             }
             case MESSAGE_DEMANDE: {
