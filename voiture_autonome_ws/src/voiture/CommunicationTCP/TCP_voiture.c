@@ -59,6 +59,8 @@ void* receive_thread() {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
                 set_consigne(c);
+                get_consigne(c);
+                printf("autorisation = %d, structure id = %d \n", c->autorisation, c->structure_id)
                 break;
             }
 
@@ -87,7 +89,14 @@ void* receive_thread() {
 
 
 static int recvBuffer(void* buffer, size_t size) {
-    return recv(connexion_tcp.sockfd, buffer, size, 0);
+    size_t total = 0;
+    char* ptr = (char*) buffer;
+    while (total < size) {
+        ssize_t n = recv(connexion_tcp.sockfd, ptr + total, size - total, 0);
+        if (n <= 0) return n; // erreur ou fermeture
+        total += n;
+    }
+    return total;
 }
 
 int recvConsigne(Consigne* cons) {
@@ -95,36 +104,35 @@ int recvConsigne(Consigne* cons) {
 }
 
 int recvItineraire(Itineraire* iti) {
-    // réception du header
-    recvBuffer( &iti->nb_points, sizeof(int));
-    // allocation dynamique des points
+    int n = recvBuffer(&iti->nb_points, sizeof(int));
+    if (n <= 0) return n;
+
     iti->points = malloc(iti->nb_points * sizeof(Point));
     if (!iti->points) return -1;
+
     return recvBuffer(iti->points, iti->nb_points * sizeof(Point));
 }
 
 int recvFin(char* buffer, size_t max_size) {
     int n = recvBuffer(buffer, max_size);
     if (n <= 0) return n;
-    buffer[max_size - 1] = '\0'; // sécurité
+    buffer[max_size - 1] = '\0';
     return n;
 }
 
 int recvMessage(MessageType* type, void* message) {
-    // lire le type
-    printf("Avant recvbuffer\n");
-    int n = recvBuffer( type, sizeof(MessageType));
-    printf("n = %d\n", n);
-    fflush(stdin);
+    int n = recvBuffer(type, sizeof(MessageType));
     if (n <= 0) {
-        perror("Erreur recvBuffer");
-        return -1;  // ou gérer la déconnexion
+        perror("Erreur recvBuffer (type)");
+        return -1;
     }
-    INFO(TAG, "type : %d", *type);
+
+    int total = n;
     switch (*type) {
-        case MESSAGE_CONSIGNE:   return recvConsigne((Consigne*)message);
-        case MESSAGE_ITINERAIRE: return recvItineraire((Itineraire*)message);
-        case MESSAGE_FIN:        return recvFin((char*)message, 2048);
+        case MESSAGE_CONSIGNE:   total += recvConsigne((Consigne*)message); break;
+        case MESSAGE_ITINERAIRE: total += recvItineraire((Itineraire*)message); break;
+        case MESSAGE_FIN:        total += recvFin((char*)message, 2048); break;
         default: return -1;
     }
+    return total;
 }

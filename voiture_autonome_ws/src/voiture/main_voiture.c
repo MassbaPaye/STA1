@@ -23,20 +23,29 @@ pthread_t thread_communication_serie;
 pthread_t thread_simulation;
 #endif
 
-PositionVoiture pos;
-void* thread_periodique(void* arg) {
-    int a = 0;
 
+void* thread_periodique(void* arg) {
+    PositionVoiture pos;
+    DemandeType a = RESERVATION_STRUCTURE;
+    Demande d;
+    int b = 0;
     while (1) {
-        pos.x = a;
-        pos.y = a;
-        pos.z = a;
-        pos.theta = a;
-        pos.vx = a;
-        pos.vy = a;
-        pos.vz = a;
-        sendMessage(MESSAGE_POSITION, &pos);
-        a += 1;
+        pos.x = b;
+        pos.y = b;
+        pos.z = b;
+        pos.theta = b;
+        pos.vx = b;
+        pos.vy = b;
+        pos.vz = b;
+        d.structure_id = 1;
+        d.type_operation = a;
+        sendMessage(MESSAGE_DEMANDE, &d);
+        if (a == RESERVATION_STRUCTURE){
+            a = LIBERATION_STRUCTURE;
+        } else {
+            a = RESERVATION_STRUCTURE;
+        }
+        b += 1;
         sleep(3); // attend 3 secondes
     }
     return NULL;
