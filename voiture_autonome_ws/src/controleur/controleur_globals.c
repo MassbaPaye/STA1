@@ -1,6 +1,7 @@
 // Ce fichier contient uniquement les variables globales propres au processus "controleur". 
 // Aucune donnée n'est partagée avec le processus "voiture".
 
+#include "utils.h"
 #include "controleur_globals.h"
 #include <string.h>
 #include <stdio.h>
