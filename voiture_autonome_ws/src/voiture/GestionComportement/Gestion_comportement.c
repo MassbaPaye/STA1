@@ -29,12 +29,12 @@ int generate_trajectoire(int blocking) {
     DonneesDetection Obj_detecte;
     Consigne cons;
 
-    if (get_position(&pos, blocking) != 0) {
+    if (get_position(&pos) != 0) {
         DBG(TAG, "Failure dans l'obtention de le position");
         return -1;
     }
 
-    if (get_itineraire(&iti, blocking) != 0) {
+    if (get_itineraire(&iti) != 0) {
         DBG(TAG, "Failure dans l'obtention de l'itineraire");
         return -1;
     }
@@ -44,12 +44,12 @@ int generate_trajectoire(int blocking) {
         return -1;
     }
 
-    if(get_donnees_detection(&Obj_detecte, blocking) != 0){
+    if(get_donnees_detection(&Obj_detecte) != 0){
         DBG(TAG, "Failure dans l'obtention des donnes de detection"); 
         return -1;
     }
 
-    if(get_consigne(&cons, blocking) != 0){
+    if(get_consigne(&cons) != 0){
         DBG(TAG, "Failure dans l'obtention de la consigne"); 
         return -1;
     }
@@ -85,7 +85,7 @@ int generate_trajectoire(int blocking) {
     traj.vitesse = v_current;
     traj.arreter_fin = false;
 
-    int DIST_INSERT_POSITION = 50; 
+    int DIST_INSERT_POSITION = 50 * 50; 
     int write_idx = 0;
 
     if (best_d2 > DIST_INSERT_POSITION) {
@@ -98,64 +98,60 @@ int generate_trajectoire(int blocking) {
         traj.nb_points++;
     }
 
-    int start = best_idx + 1;
+    int start = best_idx - 1;
+    if(best_idx == 0){
+        start == 0;
+    }
     for (int i = start; i < iti.nb_points && traj.nb_points < MAX_POINTS_TRAJECTOIRE; i++) {
         traj.points[traj.nb_points++] = iti.points[i];
         for(int j=0; j<Obj_detecte.count; j++){
             if(i == point_arret[j]){
                 switch (Obj_detecte.obstacle[j].type){
-                case OBSTACLE_VOITURE:
-                    
-                    break;
-                case PANNEAU_LIMITATION_30:
-                    traj.vitesse_max = 30;
-                    traj.vitesse = 30;
-                    break;
-                case PANNEAU_BARRIERE:
-
-                    break;
-                case PANNEAU_CEDER_PASSAGE:
-
-                    break;
-                case PANNEAU_FIN_30:
-                    traj.vitesse_max = (float)MAX_VITESSE;
-                    break;
-                case PANNEAU_SENS_UNIQUE:
-                    
-                    break;
-                case PONT:
-                    if(cons.autorisation == 0){
+                    case OBSTACLE_VOITURE:
+                        
                         break;
-                    }
-                    Demande d = {0};
-                    d.type = 1;
-                    set_demande(&d, blocking);
-                    break;
+                    case PANNEAU_LIMITATION_30:
+                        traj.vitesse_max = 30;
+                        traj.vitesse = 30;
+                        break;
+                    case PANNEAU_BARRIERE:
+                        i = MAX_POINTS_TRAJECTOIRE;
+                        break;
+                    case PANNEAU_CEDER_PASSAGE:
+                        i = MAX_POINTS_TRAJECTOIRE;
+                        break;
+                    case PANNEAU_FIN_30:
+                        traj.vitesse_max = (float)MAX_VITESSE;
+                        break;
+                    case PANNEAU_SENS_UNIQUE:
+                        
+                        break;
+                    case PONT:
+                        do{
+                            i = MAX_POINTS_TRAJECTOIRE;
+                            Demande d = {0};
+                            d.type = 1;
+                            set_demande(&d);
+                        }while(cons.autorisation == 0);  
+                        break;
                 }
-                traj.arreter_fin = true;
             }
         }
-        if(traj.arreter_fin == true){
-            break;
-        }
     }
+    
 
     if (traj.nb_points == 0) {
         traj.points[0] = iti.points[best_idx];
         traj.nb_points = 1;
     }
 
-    if (set_trajectoire(&traj, blocking) != 0) {
+    if (set_trajectoire(&traj) != 0) {
         DBG(TAG, "Failure dans definition de la trajectoire");
         return -1;
     }
 
     DBG(TAG, "Trajectoire gerée avec %d points (best_idx=%d, best_d2=%lld)", traj.nb_points, best_idx, best_d2);
     return 0;
-}
-
-int (){
-
 }
 
 // Fonction appelée automatiquement quand on appuie sur Ctrl+C
