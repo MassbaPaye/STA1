@@ -17,5 +17,5 @@ all: $(OBJS)
 
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@) 
-	$(CC) $(ARGS) -c $< -o $@ 
+	@$(CC) $(ARGS) -c $< -o $@ 
 	@echo "✅ Module Simulation : $@ compilé"

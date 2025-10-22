@@ -68,6 +68,7 @@ VOITURE_BUILD := $(BUILD_DIR)/voiture
 VOITURE_EXEC := $(VOITURE_BUILD)/voiture
 
 voiture:
+	@$(MAKE) clean
 	@echo "🚗 Compilation du projet voiture..."
 	@mkdir -p $(VOITURE_BUILD)
 	@$(MAKE) --no-print-directory tools
@@ -99,6 +100,7 @@ CONTROLEUR_BUILD := $(BUILD_DIR)/controleur
 CONTROLEUR_EXEC := $(CONTROLEUR_BUILD)/controleur
 
 controleur:
+	@$(MAKE) clean
 	@echo "🎮 Compilation du projet controleur..."
 	@mkdir -p $(CONTROLEUR_BUILD)
 	@$(MAKE) --no-print-directory tools
