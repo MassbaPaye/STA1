@@ -49,7 +49,7 @@ int charger_itineraire_csv(const char* chemin_fichier) {
         Point p = {0};
         int id = 0;
         // Format attendu : x,y,z,theta
-        if (sscanf(ligne, "%d,%f,%f,%f,%f", &id, &p.x, &p.y, &p.z, &p.theta) != 4) {
+        if (sscanf(ligne, "%d,%f,%f,%f,%f", &id, &p.x, &p.y, &p.z, &p.theta) != 5) {
             DBG(TAG, "Ligne CSV invalide : %s", ligne);
             continue;
         }
