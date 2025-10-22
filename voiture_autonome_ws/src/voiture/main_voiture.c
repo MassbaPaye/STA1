@@ -13,17 +13,19 @@
 #include "communication_tcp_voiture.h"
 #include "communication_serie.h"
 #include "simulation_loc.h"
+#include "UDP_voiture.h"
 
 #define TAG "main"
 
 pthread_t thread_localisation;
 pthread_t thread_communication_tcp;
+pthread_t thread_communication_udp;
 pthread_t thread_communication_serie;
 #ifdef SIMULATION
 pthread_t thread_simulation;
 #endif
 
-
+/*
 void* thread_periodique(void* arg) {
     PositionVoiture pos;
     DemandeType a = RESERVATION_STRUCTURE;
@@ -40,6 +42,7 @@ void* thread_periodique(void* arg) {
         d.structure_id = 1;
         d.type_operation = a;
         sendMessage(MESSAGE_DEMANDE, &d);
+        sendMessage(MESSAGE_POSITION, &pos);
         if (a == RESERVATION_STRUCTURE){
             a = LIBERATION_STRUCTURE;
         } else {
@@ -50,7 +53,7 @@ void* thread_periodique(void* arg) {
     }
     return NULL;
 }
-
+*/
 int main(int argc, char *argv[]) {
     
     DBG(TAG, "Mode DEBUG activé");
@@ -82,6 +85,14 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Lancement du thread UDP
+    if (pthread_create(&thread_communication_udp, NULL, initialisation_communication_camera, NULL) != 0) {
+        perror("Erreur pthread_create lancer communication udp");
+        return EXIT_FAILURE;
+    } else {
+        printf("Connexion UDP avec la caméra bien lancée\n");
+    }
+
     // Attente de la connexion
     printf("En attente de la connexion avec le contrôleur...\n");
     while (!est_connectee()) {
@@ -98,17 +109,20 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     #endif
-
+    /*
     pthread_t tid;
     if (pthread_create(&tid, NULL, thread_periodique, NULL) != 0) {
         perror("Erreur pthread_create lancer communication serie");
         return EXIT_FAILURE;
     }
-
+    */
     /* // code module exemple
     exemple_module("Message du module d'exemple");
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
     */
+       // Attendre la fin du thread (ici il tourne en boucle infinie)
+    pthread_join(thread_communication_udp, NULL);
+
     getchar();
     stop_communication_serie();
     stop_localisation();

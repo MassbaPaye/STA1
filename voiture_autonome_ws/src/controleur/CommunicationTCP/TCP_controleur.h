@@ -18,9 +18,6 @@ extern int nb_voitures;
 VoitureConnection* get_voiture_by_id(int id_voiture);
 VoitureConnection* get_voiture_by_sockfd(int sockfd);
 
-// Boucle interactive pour envoyer consignes/itinéraires
-//void* boucle_interactive(void* arg);
-
 int recvMessage(int sockfd, MessageType* type, void* message);
 
 int recvPositionVoiture(int sockfd, PositionVoiture* pos);

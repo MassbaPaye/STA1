@@ -691,21 +691,23 @@ def draw_detections_on_image(img: np.ndarray, obstacles: List[Obstacle]) -> None
 
 
 def main():
-    """
-    Capture une image depuis une webcam, exécute la détection TFLite et sauvegarde les obstacles en JSON.
-    """
-    parser = argparse.ArgumentParser(description="Capture webcam et sauvegarde des obstacles détectés en JSON.")
-    parser.add_argument("--source", default="0", help="Index de webcam (ex: 0) ou chemin vidéo/image.")
-    parser.add_argument("--output", default="obstacles.json", help="Fichier de sortie JSON.")
-    parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS), help="Chemin vers les poids TFLite.")
-    parser.add_argument("--imgsz", type=int, default=640, help="Taille d'image d'entrée du modèle.")
-    parser.add_argument("--conf", type=float, default=0.25, help="Seuil de confiance.")
-    parser.add_argument("--iou", type=float, default=0.45, help="Seuil IOU pour NMS.")
-    parser.add_argument("--threads", type=int, default=2, help="Nombre de threads TFLite.")
+    import argparse
+    parser = argparse.ArgumentParser(description="Détection + envoi UDP des obstacles")
+    parser.add_argument("--source", default="0", help="Caméra ou fichier vidéo/image")
+    parser.add_argument("--host", default="192.168.0.10", help="IP du Raspberry Pi récepteur")
+    parser.add_argument("--port", type=int, default=5005, help="Port UDP")
+    parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS))
+    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--conf", type=float, default=0.25)
+    parser.add_argument("--iou", type=float, default=0.45)
+    parser.add_argument("--threads", type=int, default=2)
     args = parser.parse_args()
 
+    # Capture image depuis la source
     source = int(args.source) if str(args.source).isdigit() else args.source
     frame = capture_image_from_source(source)
+
+    # Détection
     obstacles = detect_objects_tflite_from_image(
         frame,
         Path(args.weights),
@@ -714,9 +716,20 @@ def main():
         iou=args.iou,
         threads=args.threads,
     )
-    save_obstacles_to_json(obstacles, args.output)
-    print(f"{len(obstacles)} obstacle(s) enregistré(s) dans {args.output}")
 
+    # Envoi UDP
+    try:
+        nbytes = send_obstacles_udp(obstacles, args.host, args.port)
+        print(f"{nbytes} octets envoyés à {args.host}:{args.port}")
+    except RuntimeError as e:
+        print(f"Erreur UDP: {e}")
+
+    # Optionnel : affichage
+    annotated = frame.copy()
+    draw_detections_on_image(annotated, obstacles)
+    cv2.imshow("Detections", annotated)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    main()
+    main_udp()
