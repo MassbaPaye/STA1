@@ -37,6 +37,9 @@ CLASS_NAMES = {
     8: "PONT",
 }
 
+DEFAULT_PHOTO_DIR = Path(__file__).resolve().parent / "Photos"
+DEFAULT_PHOTO_FILENAME = "latest.jpg"
+
 @dataclass
 class Point:
     x: float
@@ -304,6 +307,67 @@ def capture_image_from_source(source):
         raise RuntimeError(f"Impossible de lire une image depuis la source : {source}")
 
     return frame
+
+def capture_photo(
+    output_dir: str | Path | None = None,
+    filename: str = DEFAULT_PHOTO_FILENAME,
+    resolution: str | Tuple[int, int] = "12mp",
+    awb_mode: Optional[str] = None,
+    exposure_mode: Optional[str] = None,
+    warmup: float = 1.0,
+) -> Tuple[np.ndarray, Path]:
+    """
+    Capture une image unique depuis la caméra principale.
+
+    La photo est enregistrée dans `output_dir/filename` (remplacement systématique) et renvoyée
+    sous forme de tableau numpy (BGR).
+    """
+    output_path = Path(output_dir) if output_dir is not None else DEFAULT_PHOTO_DIR
+    output_path = output_path.expanduser().resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    photo_path = output_path / filename
+
+    controls: Dict[str, object] = {}
+    if awb_mode:
+        controls["AwbMode"] = awb_mode
+    if exposure_mode:
+        controls["ExposureMode"] = exposure_mode
+
+    if Picamera2 is None:
+        # Fallback générique (OpenCV) pour développement hors Raspberry Pi.
+        frame = capture_image_from_source(0)
+        cv2.imwrite(str(photo_path), frame)
+        return frame, photo_path
+
+    size = _resolve_imx500_resolution(resolution)
+    picam2 = Picamera2()
+    config = picam2.create_still_configuration(
+        main={"size": size, "format": "RGB888"},
+        buffer_count=2,
+    )
+    picam2.configure(config)
+    picam2.start()
+
+    try:
+        if warmup > 0:
+            time.sleep(warmup)
+        if controls:
+            picam2.set_controls(controls)
+            time.sleep(0.3)
+        array = picam2.capture_array("main")
+    finally:
+        picam2.stop()
+
+    if array is None:
+        raise RuntimeError("Capture caméra vide.")
+
+    if array.ndim == 3 and array.shape[2] == 3:
+        frame = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+    else:
+        frame = array
+
+    cv2.imwrite(str(photo_path), frame)
+    return frame, photo_path
 
 def _list_tflite_candidates(max_n=8):
     candidates = []
@@ -695,8 +759,7 @@ def draw_detections_on_image(img: np.ndarray, obstacles: List[Obstacle]) -> None
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Détection + envoi UDP des obstacles")
-    parser.add_argument("--source", default="0", help="Caméra ou fichier vidéo/image")
+    parser = argparse.ArgumentParser(description="Capture photo, détection d'obstacles et envoi UDP.")
     parser.add_argument("--host", default="127.0.0.1", help="IP du Raspberry Pi récepteur")
     parser.add_argument("--port", type=int, default=5005, help="Port UDP")
     parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS))
@@ -704,11 +767,27 @@ def main():
     parser.add_argument("--conf", type=float, default=0.25)
     parser.add_argument("--iou", type=float, default=0.45)
     parser.add_argument("--threads", type=int, default=2)
+    parser.add_argument("--photo-dir", default=None, help="Dossier où enregistrer la photo (défaut: dossier Photos du projet)")
+    parser.add_argument("--photo-name", default=DEFAULT_PHOTO_FILENAME, help="Nom de fichier de la photo (défaut: latest.jpg)")
+    parser.add_argument("--resolution", default="12mp", help="Résolution de capture (ex: 12mp, 2mp, 1920x1080)")
+    parser.add_argument("--awb", default=None, help="Mode balance des blancs Picamera2 (ex: auto, daylight)")
+    parser.add_argument("--exposure", default=None, help="Mode d'exposition Picamera2 (ex: normal)")
+    parser.add_argument("--warmup", type=float, default=1.0, help="Temps de préchauffage caméra en secondes (défaut: 1)")
     args = parser.parse_args()
 
-    # Capture image depuis la source
-    source = int(args.source) if str(args.source).isdigit() else args.source
-    frame = capture_image_from_source(source)
+    try:
+        frame, photo_path = capture_photo(
+            output_dir=args.photo_dir,
+            filename=args.photo_name,
+            resolution=args.resolution,
+            awb_mode=args.awb,
+            exposure_mode=args.exposure,
+            warmup=args.warmup,
+        )
+        print(f"Photo sauvegardée dans {photo_path}")
+    except Exception as exc:
+        print(f"Erreur lors de la capture photo: {exc}")
+        return
 
     # Détection
     obstacles = detect_objects_tflite_from_image(
@@ -727,7 +806,7 @@ def main():
     except RuntimeError as e:
         print(f"Erreur UDP: {e}")
 
-    # Optionnel : affichage
+    # Optionnel : affichage rapide avec annotation
     annotated = frame.copy()
     draw_detections_on_image(annotated, obstacles)
     cv2.imshow("Detections", annotated)

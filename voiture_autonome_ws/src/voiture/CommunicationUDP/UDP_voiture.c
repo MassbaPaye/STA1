@@ -138,3 +138,4 @@ DonneesDetection* parse_json_to_donnees(const char *json_str) {
     cJSON_Delete(root);
     return data;
 }
+
