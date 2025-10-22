@@ -88,9 +88,6 @@ void* initialisation_communication_controleur(void* arg) {
 
     printf("[Serveur] En attente de connexion...\n");
 
-    pthread_t tid_ui;
- //   pthread_create(&tid_ui, NULL, boucle_interactive, NULL);
-
     while (1) {
         int client_sd = accept(se, NULL, NULL);
         CHECK_ERROR(client_sd, -1, "Erreur accept");
@@ -119,6 +116,5 @@ void* initialisation_communication_controleur(void* arg) {
     }
 
     close(se);
-    pthread_join(tid_ui, NULL);
     return NULL;
 }

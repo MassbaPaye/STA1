@@ -47,7 +47,7 @@ modules:
 $(VOITURE_BUILD)/%.o: $(VOITURE_DIR)/%.c
 	@mkdir -p $(VOITURE_BUILD)
 	@echo "\n⚙️  Compilation des fichiers principaux"
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 	@echo "✅ $$(basename $<) compilé"
 
 dir_objs: $(VOITURE_OBJS)

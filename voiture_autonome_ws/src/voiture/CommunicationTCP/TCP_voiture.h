@@ -25,9 +25,9 @@ typedef struct {
 
 extern ConnexionTCP connexion_tcp;
 
-int recvConsigne(int sockfd, Consigne* cons);
-int recvItineraire(int sockfd, Itineraire* iti);
-int recvFin(int sockfd, char* buffer, size_t max_size);
-int recvMessage(int sockfd, MessageType* type, void* message);
+int recvConsigne(Consigne* cons);
+int recvItineraire( Itineraire* iti);
+int recvFin(char* buffer, size_t max_size);
+int recvMessage(MessageType* type, void* message);
 
 #endif

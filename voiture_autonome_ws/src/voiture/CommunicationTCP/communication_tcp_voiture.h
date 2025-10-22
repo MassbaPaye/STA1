@@ -4,12 +4,12 @@
 #include "messages.h"
 
 /* === Fonctions génériques === */
-int sendMessage(int sockfd, MessageType type, void* message);
+int sendMessage(MessageType type, void* message);
 
 /* === Fonctions spécialisées === */
-int sendPositionVoiture(int sockfd, const PositionVoiture* pos);
-int sendDemande(int sockfd, const Demande* dem);
-int sendFin(int sockfd);
+int sendPositionVoiture(const PositionVoiture* pos);
+int sendDemande(const Demande* dem);
+int sendFin();
 
 void deconnecter_controleur();
 void* initialisation_communication_voiture(void* arg);

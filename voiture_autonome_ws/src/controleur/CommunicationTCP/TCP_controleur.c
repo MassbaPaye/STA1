@@ -102,6 +102,8 @@ void* receive_thread(void* arg) {
             case MESSAGE_POSITION: {
                 PositionVoiture* pos = (PositionVoiture*) buffer;
                 set_voiture_position(v->id_voiture, pos);
+                get_voiture_position(v->id_voiture, pos);
+                printf("x = %f, y = %f, z = %f \n", pos->x, pos->y, pos->z);
                 break;
             }
             case MESSAGE_DEMANDE: {
@@ -149,61 +151,3 @@ void deconnecter_voiture(VoitureConnection* v) {
 
     free(v);
 }
-
-/* === Boucle interactive === */
-/*
-void* boucle_interactive(void* arg) {
-    (void)arg;
-    char cmd[32];
-    int id;
-
-    while (1) {
-        printf("\nTapez 'consigne', 'itineraire', 'liste', ou 'fin' > ");
-        if (!fgets(cmd, sizeof(cmd), stdin)) continue;  // ignore erreur
-        cmd[strcspn(cmd, "\n")] = '\0';  // supprimer le '\n'
-
-        if (strcmp(cmd, "liste") == 0) {
-            afficher_voitures_connectees();
-            continue;
-        }
-
-        printf("ID de la voiture > ");
-        if (scanf("%d", &id) != 1) { getchar(); continue; }  // ignorer erreur
-        getchar(); // consommer '\n' restant
-
-        VoitureConnection* v = get_voiture_by_id(id);
-        if (!v) {
-            printf("Voiture %d non connectée.\n", id);
-            continue;
-        }
-        int sd = v->sockfd;
-
-        if (strcmp(cmd, "fin") == 0) {
-            sendFin(sd);
-            deconnecter_voiture(v);
-            continue;
-        }
-
-        if (strcmp(cmd, "consigne") == 0) {
-            Consigne c = {2, CONSIGNE_AUTORISATION};
-            sendMessage(sd, MESSAGE_CONSIGNE, &c);
-            INFO(TAG, "[Serveur] Consigne envoyée à la voiture %d\n", id);
-        } 
-        else if (strcmp(cmd, "itineraire") == 0) {
-            Itineraire iti;
-            iti.nb_points = 2;
-            iti.points = malloc(sizeof(Point) * iti.nb_points);
-            iti.points[0] = (Point){0,0,0,0};
-            iti.points[1] = (Point){100,100,0,45.0f};
-            sendMessage(sd, MESSAGE_ITINERAIRE, &iti);
-            free(iti.points);
-            printf("[Serveur] Itinéraire envoyé à la voiture %d\n", id);
-        } 
-        else {
-            printf("Commande inconnue.\n");
-        }
-    }
-
-    return NULL;
-}
-*/

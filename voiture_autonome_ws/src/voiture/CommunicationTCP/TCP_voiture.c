@@ -14,6 +14,7 @@
 #include "config.h"
 #include "TCP_voiture.h"
 #include "logger.h"
+#include "voiture_globals.h"
 
 #define TAG "communication_tcp_voiture"
 
@@ -40,7 +41,7 @@ void* receive_thread() {
 
         if (stop || sock < 0) break;
 
-        int nbytes = recvMessage(sock, &type, buffer);
+        int nbytes = recvMessage(&type, buffer);
 
         if (nbytes <= 0) {
             printf("[Client] Connexion fermée ou erreur.\n");
@@ -57,20 +58,15 @@ void* receive_thread() {
         switch (type) {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
-                printf("[Client] Consigne reçue : structure %d -> %s\n",
-                       c->structure_id,
-                       c->autorisation == CONSIGNE_AUTORISATION ? "AUTORISATION" : "ATTENTE");
+                set_consigne(c);
+                get_consigne(c);
+                printf("autorisation = %d, structure id = %d \n", c->autorisation, c->structure_id);
                 break;
             }
 
             case MESSAGE_ITINERAIRE: {
                 Itineraire* iti = (Itineraire*) buffer;
-                printf("[Client] Itinéraire reçu : %d points\n", iti->nb_points);
-                for (int i = 0; i < iti->nb_points; i++) {
-                    printf("  Point %d: (%d,%d,%d) theta=%.2f\n",
-                           i, iti->points[i].x, iti->points[i].y, iti->points[i].z, iti->points[i].theta);
-                }
-                free(iti->points);
+                set_itineraire(iti);
                 break;
             }
 
@@ -92,42 +88,51 @@ void* receive_thread() {
 }
 
 
-static int recvBuffer(int sockfd, void* buffer, size_t size) {
-    return recv(sockfd, buffer, size, 0);
+static int recvBuffer(void* buffer, size_t size) {
+    size_t total = 0;
+    char* ptr = (char*) buffer;
+    while (total < size) {
+        ssize_t n = recv(connexion_tcp.sockfd, ptr + total, size - total, 0);
+        if (n <= 0) return n; // erreur ou fermeture
+        total += n;
+    }
+    return total;
 }
 
-int recvConsigne(int sockfd, Consigne* cons) {
-    return recvBuffer(sockfd, cons, sizeof(Consigne));
+int recvConsigne(Consigne* cons) {
+    return recvBuffer(cons, sizeof(Consigne));
 }
 
-int recvItineraire(int sockfd, Itineraire* iti) {
-    // réception du header
-    recvBuffer(sockfd, &iti->nb_points, sizeof(int));
-    // allocation dynamique des points
+int recvItineraire(Itineraire* iti) {
+    int n = recvBuffer(&iti->nb_points, sizeof(int));
+    if (n <= 0) return n;
+
     iti->points = malloc(iti->nb_points * sizeof(Point));
     if (!iti->points) return -1;
-    return recvBuffer(sockfd, iti->points, iti->nb_points * sizeof(Point));
+
+    return recvBuffer(iti->points, iti->nb_points * sizeof(Point));
 }
 
-int recvFin(int sockfd, char* buffer, size_t max_size) {
-    int n = recvBuffer(sockfd, buffer, max_size);
+int recvFin(char* buffer, size_t max_size) {
+    int n = recvBuffer(buffer, max_size);
     if (n <= 0) return n;
-    buffer[max_size - 1] = '\0'; // sécurité
+    buffer[max_size - 1] = '\0';
     return n;
 }
 
-int recvMessage(int sockfd, MessageType* type, void* message) {
-    // lire le type
-    int n = recvBuffer(sockfd, type, sizeof(MessageType));
+int recvMessage(MessageType* type, void* message) {
+    int n = recvBuffer(type, sizeof(MessageType));
     if (n <= 0) {
-        perror("Erreur recvBuffer");
-        return -1;  // ou gérer la déconnexion
+        perror("Erreur recvBuffer (type)");
+        return -1;
     }
-    INFO(TAG, "type : %d", *type);
+
+    int total = n;
     switch (*type) {
-        case MESSAGE_CONSIGNE:   return recvConsigne(sockfd, (Consigne*)message);
-        case MESSAGE_ITINERAIRE: return recvItineraire(sockfd, (Itineraire*)message);
-        case MESSAGE_FIN:        return recvFin(sockfd, (char*)message, 2048);
+        case MESSAGE_CONSIGNE:   total += recvConsigne((Consigne*)message); break;
+        case MESSAGE_ITINERAIRE: total += recvItineraire((Itineraire*)message); break;
+        case MESSAGE_FIN:        total += recvFin((char*)message, 2048); break;
         default: return -1;
     }
+    return total;
 }

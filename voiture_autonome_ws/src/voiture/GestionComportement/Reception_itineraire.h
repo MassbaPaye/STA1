@@ -1,0 +1,2 @@
+
+int reception_itineraire();

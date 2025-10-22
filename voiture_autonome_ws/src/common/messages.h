@@ -26,18 +26,16 @@ typedef enum {
     CONSIGNE_ATTENTE = 1
 } ConsigneType;
 
-/* Enumération des types de panneaux */
 typedef enum {
+    OBSTACLE_VOITURE = 0,
     PANNEAU_LIMITATION_30 = 1,
-    PANNEAU_DANGER = 2,
-    PANNEAU_SENS_UNIQUE = 3,
-    PANNEAU_FIN_LIMITATION = 4 // A completer / modifier
-} PanneauType;
-
-typedef enum {
-    VoitureObstacle = 1,
-    PietonObstacle = 2,
-    AutreObstacle = 3,
+    PANNEAU_BARRIERE = 2,
+    PANNEAU_CEDER_PASSAGE = 3,
+    PANNEAU_FIN_30 = 4,
+    PANNEAU_INTERSECTION = 5,
+    PANNEAU_PARKING = 6,
+    PANNEAU_SENS_UNIQUE = 7,
+    PONT = 8
 } ObstacleType;
 
 // === TYPES UTILITAIRES ===
@@ -49,9 +47,9 @@ typedef enum {
      - Position d'une voiture (x, y, theta) ou (x, y, z, theta)
 */
 typedef struct {
-    int x; // mm
-    int y; // mm
-    int z; // mm
+    float x; // mm
+    float y; // mm
+    float z; // mm
     float theta; // degrés
 } Point;
 
@@ -66,10 +64,9 @@ typedef struct {
 */
 typedef struct {
     int structure_id;
-    int type_operation; // LIBERATION_STRUCTURE ou RESERVATION_STRUCTURE
+    DemandeType type; // LIBERATION_STRUCTURE ou RESERVATION_STRUCTURE
     char direction; // ex: "n" ou "s"
 } Demande;
-
 
 /*  Message TCP C/V : Itinéraire 
     Tache émetrice : Planificateur d'itinéraire
@@ -114,8 +111,6 @@ typedef struct {
 } Consigne;
 
 
-
-
 // === TYPES COMMUNICATION INTERNES ===
 // Permettent d'échanger entre les taches au sein du meme processus
 
@@ -137,16 +132,12 @@ typedef struct {
 /*  Type Utilitaire : Panneau 
     Description : Indique la présence d'un panneau sur la voie
 */
-typedef struct {
-    int distance;
-    PanneauType type;
-} Panneau;
+
 
 /*  Type Utilitaire : Obstacle 
     Description : Indique la présence d'un obstcale sur la voie
 */
 typedef struct {
-    int distance;
     ObstacleType type;
     Point pointd;
     Point pointg;
@@ -171,10 +162,8 @@ typedef struct {
     /!\ Mémoire : Il faut libérer les lignes de point dans marquage_sol
 */
 typedef struct {
-    bool obstacle_present;
-    Obstacle obstacle;
-    int nb_panneaux;
-    Panneau panneaux[MAX_PANNEAUX_SIMULTANES];
+    int count;
+    Obstacle obstacle[MAX_OBSTACLES_SIMULTANES];
     MarquageSol marquage_sol;
 } DonneesDetection;
 
