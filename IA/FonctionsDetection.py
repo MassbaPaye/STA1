@@ -287,6 +287,15 @@ def _xywh2xyxy(xywh):
     y2 = y + h / 2
     return np.stack([x1, y1, x2, y2], axis=1)
 
+## Fonction qui suit permet d'avoir l'angle relatif par rapport à la voiture, avec l'estimation de distance qu'on a fait expérimentalement avec le mètre,on pourra en automatique prédire si on va le percuter 
+# d'après la doc hfov= 78,8 deg, en 30 fps (2028*1014) on a cx=1014 
+
+def bearing_from_x_with_hfov(x_pixel: float,cx=1014, hfov_deg=78.8):
+    x_norm = (x_pixel - cx) / cx            # -1..+1
+    hfov_rad = math.radians(hfov_deg)
+    theta = x_norm * (hfov_rad / 2.0)      # radians
+    return theta
+
 def capture_image_from_source(source):
     if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
         cap = cv2.VideoCapture(int(source))
