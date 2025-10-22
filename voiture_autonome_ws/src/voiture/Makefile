@@ -18,7 +18,15 @@ VOITURE_DIR := $(CURDIR)
 
 
 # Liste des sous-dossiers (= modules) avec chemin complet
-VOITURE_MODULES := $(wildcard $(VOITURE_DIR)/*/)
+VOITURE_MODULES := \
+	$(VOITURE_DIR)/CommunicationSerie/ \
+	$(VOITURE_DIR)/CommunicationTCP/ \
+	$(VOITURE_DIR)/CommunicationUDP/ \
+	$(VOITURE_DIR)/GestionComportement/ \
+	$(VOITURE_DIR)/Localisation/ \
+	$(VOITURE_DIR)/ModuleTemplate/ \
+	$(VOITURE_DIR)/Simulation/ \
+	$(VOITURE_DIR)/SuiviTrajectoire/
 
 INCLUDES = $(COMMON_INCLUDES) $(TOOLS_INCLUDES) -I$(VOITURE_DIR) $(addprefix -I, $(VOITURE_MODULES))
 
@@ -32,10 +40,12 @@ VOITURE_OBJS := $(patsubst $(VOITURE_DIR)/%.c,$(VOITURE_BUILD)/%.o,$(VOITURE_C_F
 # echo "\n⚙️  Compilation du module $$(basename $$m)...";
 modules:
 	@echo "📦 Compilation des modules de voiture..."
+	@echo "Modules détectés: $(VOITURE_MODULES)"
 	@for m in $(VOITURE_MODULES); do \
 		if echo "$(DISABLE)" | grep -qw "$$(basename $$m)"; then \
 			echo "⏭️  Module $$(basename $$m) désactivé"; \
 		else \
+			echo "⚙️  Compilation du module $$(basename $$m) → BUILD_DIR=$(VOITURE_BUILD)/$$(basename $$m)"; \
 			$(MAKE) --no-print-directory -C $$m CFLAGS="$(CFLAGS)" BUILD_DIR=$(VOITURE_BUILD)/$$(basename $$m) INCLUDES="$(INCLUDES)" || \
 				echo "⚠️  Erreur dans $$(basename $$m)"; \
 		fi; \

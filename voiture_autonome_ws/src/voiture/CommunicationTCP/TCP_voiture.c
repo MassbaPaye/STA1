@@ -19,7 +19,7 @@
 #define TAG "communication_tcp_voiture"
 
 int sockfd = -1;
-pthread_t tid_rcv = -1;
+pthread_t tid_rcv = 0;
 
 ConnexionTCP connexion_tcp = {
     .sockfd = -1,

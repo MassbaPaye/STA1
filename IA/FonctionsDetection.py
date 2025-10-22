@@ -15,10 +15,21 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Iterable
 import numpy as np
 
+from libcamera import Transform  # ajout à faire en haut du fichier
+
 try:
-    from picamera2 import Picamera2
-except Exception:
+    from picamera2 import Picamera2,Transform
+    _PICAMERA2_IMPORT_ERROR = None
+except Exception as _err:
     Picamera2 = None  # Picamera2 n'est disponible que sur Raspberry Pi / libcamera
+    _PICAMERA2_IMPORT_ERROR = _err
+
+try:
+    from ultralytics import YOLO as UltralyticsYOLO
+    _ULTRALYTICS_IMPORT_ERROR = None
+except Exception as _err:
+    UltralyticsYOLO = None
+    _ULTRALYTICS_IMPORT_ERROR = _err
 
 # Modèle TFLite exporté localement (chemin par défaut vers best_float32.tflite)
 DEFAULT_TFLITE_WEIGHTS = (
@@ -308,6 +319,7 @@ def capture_image_from_source(source):
 
     return frame
 
+
 def capture_photo(
     output_dir: str | Path | None = None,
     filename: str = DEFAULT_PHOTO_FILENAME,
@@ -317,32 +329,45 @@ def capture_photo(
     warmup: float = 1.0,
 ) -> Tuple[np.ndarray, Path]:
     """
-    Capture une image unique depuis la caméra principale.
-
-    La photo est enregistrée dans `output_dir/filename` (remplacement systématique) et renvoyée
-    sous forme de tableau numpy (BGR).
+    Capture une image via Picamera2, l'enregistre et renvoie le frame (BGR).
+    La photo remplace systématiquement le fichier `output_dir/filename`.
     """
+    # Préparer le dossier de sortie
     output_path = Path(output_dir) if output_dir is not None else DEFAULT_PHOTO_DIR
     output_path = output_path.expanduser().resolve()
     output_path.mkdir(parents=True, exist_ok=True)
     photo_path = output_path / filename
 
+    # Paramètres optionnels Picamera2
     controls: Dict[str, object] = {}
     if awb_mode:
         controls["AwbMode"] = awb_mode
     if exposure_mode:
         controls["ExposureMode"] = exposure_mode
 
+    # Charger Picamera2 dynamiquement si besoin
     if Picamera2 is None:
-        # Fallback générique (OpenCV) pour développement hors Raspberry Pi.
-        frame = capture_image_from_source(0)
-        cv2.imwrite(str(photo_path), frame)
-        return frame, photo_path
+        try:
+            from picamera2 import Picamera2 as _Picamera2  # type: ignore
+        except Exception as exc:
+            msg = (
+                "Picamera2 est indisponible. Vérifie l'installation de 'python3-picamera2' "
+                "sur le Raspberry Pi (sudo apt install python3-picamera2) et exécute ce script sur la cible."
+            )
+            if _PICAMERA2_IMPORT_ERROR is not None:
+                raise RuntimeError(msg) from _PICAMERA2_IMPORT_ERROR
+            raise RuntimeError(msg) from exc
+        Picamera2_local = _Picamera2
+    else:
+        Picamera2_local = Picamera2
 
     size = _resolve_imx500_resolution(resolution)
-    picam2 = Picamera2()
+    picam2 = Picamera2_local()
+
+    transform = Transform(hflip=True, vflip=True)  # adapte selon ce que tu observes
     config = picam2.create_still_configuration(
-        main={"size": size, "format": "RGB888"},
+        main={"size": size, "format": "BGR888"},
+        transform=transform,
         buffer_count=2,
     )
     picam2.configure(config)
@@ -356,15 +381,22 @@ def capture_photo(
             time.sleep(0.3)
         array = picam2.capture_array("main")
     finally:
-        picam2.stop()
+        try:
+            picam2.stop()
+        finally:
+            try:
+                picam2.close()
+            except Exception:
+                pass
 
     if array is None:
         raise RuntimeError("Capture caméra vide.")
 
+    # Conversion en BGR pour OpenCV / YOLO
     if array.ndim == 3 and array.shape[2] == 3:
         frame = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
     else:
-        frame = array
+        frame = np.asarray(array)
 
     cv2.imwrite(str(photo_path), frame)
     return frame, photo_path
@@ -623,6 +655,28 @@ def _load_tflite_detector_cached(weights_str: str, imgsz: int, conf: float, iou:
         )
     return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads)
 
+
+@lru_cache(maxsize=2)
+def _load_ultralytics_model_cached(weights_str: str, device: str):
+    if UltralyticsYOLO is None:
+        msg = (
+            "Le support des modèles .pt nécessite le paquet 'ultralytics'. "
+            "Installe-le avec 'pip install ultralytics torch torchvision'."
+        )
+        if _ULTRALYTICS_IMPORT_ERROR is not None:
+            raise RuntimeError(msg) from _ULTRALYTICS_IMPORT_ERROR
+        raise RuntimeError(msg)
+
+    weights_path = Path(weights_str)
+    if not weights_path.exists():
+        raise FileNotFoundError(f"Poids Ultralytics introuvables: {weights_path}")
+
+    model = UltralyticsYOLO(weights_path)
+    device_norm = (device or "").strip().lower()
+    if device_norm and device_norm not in {"auto", "default"}:
+        model.to(device_norm)
+    return model
+
 def _normalize_classes_arg(classes) -> Optional[List[int]]:
     if classes is None or classes == '':
         return None
@@ -667,6 +721,115 @@ def detect_objects_tflite_from_image(
             )
         )
     return obstacles
+
+
+def detect_objects_ultralytics_from_image(
+    image_bgr: np.ndarray,
+    weights: str | Path,
+    imgsz: int = 640,
+    conf: float = 0.25,
+    iou: float = 0.45,
+    device: str | None = "cpu",
+    classes=None,
+) -> List[Obstacle]:
+    if not isinstance(image_bgr, np.ndarray):
+        raise TypeError("image_bgr doit être un np.ndarray (image OpenCV BGR)")
+
+    weights_path = Path(weights)
+    class_filter = _normalize_classes_arg(classes)
+    device_key = (device or "cpu").strip().lower() or "cpu"
+
+    model = _load_ultralytics_model_cached(str(weights_path), device_key)
+
+    predict_kwargs = {
+        "imgsz": int(imgsz),
+        "conf": float(conf),
+        "iou": float(iou),
+        "verbose": False,
+    }
+    if device and device.strip().lower() not in {"", "auto", "default"}:
+        predict_kwargs["device"] = device
+
+    results = model.predict(image_bgr, **predict_kwargs)
+    if not results:
+        return []
+
+    result = results[0]
+    if result.boxes is None or result.boxes.xyxy is None or len(result.boxes) == 0:
+        return []
+
+    xyxy = result.boxes.xyxy.cpu().numpy()
+    scores = result.boxes.conf.cpu().numpy()
+    class_ids = result.boxes.cls.cpu().numpy().astype(int)
+
+    mask = np.ones(len(xyxy), dtype=bool)
+    if class_filter is not None:
+        class_filter = set(class_filter)
+        mask &= np.array([cid in class_filter for cid in class_ids])
+
+    if mask.size and not mask.all():
+        xyxy = xyxy[mask]
+        scores = scores[mask]
+        class_ids = class_ids[mask]
+
+    image_shape = image_bgr.shape
+    obstacles: List[Obstacle] = []
+    for (x1, y1, x2, y2), score, class_id in zip(xyxy, scores, class_ids):
+        label = CLASS_NAMES.get(int(class_id), f"class_{int(class_id)}")
+        point_left, point_right = _bbox_to_coordinate_points(
+            (int(x1), int(y1), int(x2), int(y2)), image_shape
+        )
+        obstacles.append(
+            Obstacle(
+                label=label,
+                point_left=point_left,
+                point_right=point_right,
+                confidence=float(score),
+                class_id=int(class_id),
+            )
+        )
+    obstacles.sort(key=lambda obs: obs.confidence, reverse=True)
+    return obstacles
+
+
+def detect_obstacles_from_image(
+    image_bgr: np.ndarray,
+    weights: str | Path,
+    *,
+    imgsz: int = 640,
+    conf: float = 0.25,
+    iou: float = 0.45,
+    threads: int = 2,
+    device: str | None = "cpu",
+    classes=None,
+) -> List[Obstacle]:
+    weights_path = Path(weights)
+    suffix = weights_path.suffix.lower()
+
+    if suffix == ".tflite":
+        return detect_objects_tflite_from_image(
+            image_bgr,
+            weights_path,
+            imgsz=imgsz,
+            conf=conf,
+            iou=iou,
+            threads=threads,
+            classes=classes,
+        )
+    if suffix == ".pt":
+        return detect_objects_ultralytics_from_image(
+            image_bgr,
+            weights_path,
+            imgsz=imgsz,
+            conf=conf,
+            iou=iou,
+            device=device,
+            classes=classes,
+        )
+    raise ValueError(
+        f"Extension de modèle non supportée: '{suffix}'. "
+        "Utilise un fichier .tflite ou .pt via --weights."
+    )
 
 
 def _build_obstacle_payload(obstacles: List[Obstacle]) -> Dict[str, object]:
@@ -759,20 +922,23 @@ def draw_detections_on_image(img: np.ndarray, obstacles: List[Obstacle]) -> None
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Capture photo, détection d'obstacles et envoi UDP.")
-    parser.add_argument("--host", default="127.0.0.1", help="IP du Raspberry Pi récepteur")
-    parser.add_argument("--port", type=int, default=5005, help="Port UDP")
-    parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS))
-    parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--conf", type=float, default=0.25)
-    parser.add_argument("--iou", type=float, default=0.45)
-    parser.add_argument("--threads", type=int, default=2)
-    parser.add_argument("--photo-dir", default=None, help="Dossier où enregistrer la photo (défaut: dossier Photos du projet)")
-    parser.add_argument("--photo-name", default=DEFAULT_PHOTO_FILENAME, help="Nom de fichier de la photo (défaut: latest.jpg)")
-    parser.add_argument("--resolution", default="12mp", help="Résolution de capture (ex: 12mp, 2mp, 1920x1080)")
-    parser.add_argument("--awb", default=None, help="Mode balance des blancs Picamera2 (ex: auto, daylight)")
-    parser.add_argument("--exposure", default=None, help="Mode d'exposition Picamera2 (ex: normal)")
-    parser.add_argument("--warmup", type=float, default=1.0, help="Temps de préchauffage caméra en secondes (défaut: 1)")
+
+    parser = argparse.ArgumentParser(description="Capture photo, détection d'obstacles et envoi UDP (modèles TFLite ou Ultralytics .pt).")
+    parser.add_argument("--host", default="127.0.0.1", help="IP du destinataire UDP (contrôleur).")
+    parser.add_argument("--port", type=int, default=5005, help="Port UDP du contrôleur.")
+    parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS), help="Chemin vers le modèle (.tflite ou .pt).")
+    parser.add_argument("--imgsz", type=int, default=640, help="Taille d'entrée du modèle YOLO (pixels).")
+    parser.add_argument("--conf", type=float, default=0.25, help="Seuil de confiance minimum.")
+    parser.add_argument("--iou", type=float, default=0.45, help="Seuil IoU pour la NMS.")
+    parser.add_argument("--threads", type=int, default=2, help="Nombre de threads TFLite (ignoré pour .pt).")
+    parser.add_argument("--device", default="cpu", help="Périphérique Ultralytics (.pt) : cpu, cuda:0, auto…")
+    parser.add_argument("--photo-dir", default=None, help="Dossier où sauvegarder la photo (défaut: dossier Photos).")
+    parser.add_argument("--photo-name", default=DEFAULT_PHOTO_FILENAME, help="Nom du fichier photo (défaut: latest.jpg).")
+    parser.add_argument("--resolution", default="12mp", help="Résolution Picamera2 (ex: 12mp, 2mp, 1920x1080).")
+    parser.add_argument("--awb", default=None, help="Mode balance des blancs (Picamera2).")
+    parser.add_argument("--exposure", default=None, help="Mode d'exposition (Picamera2).")
+    parser.add_argument("--warmup", type=float, default=1.0, help="Temps de préchauffage caméra (secondes).")
+    parser.add_argument("--display", action="store_true", help="Affiche la photo annotée (requiert affichage).")
     args = parser.parse_args()
 
     try:
@@ -785,33 +951,38 @@ def main():
             warmup=args.warmup,
         )
         print(f"Photo sauvegardée dans {photo_path}")
-    except Exception as exc:
+    except RuntimeError as exc:
         print(f"Erreur lors de la capture photo: {exc}")
         return
 
-    # Détection
-    obstacles = detect_objects_tflite_from_image(
-        frame,
-        Path(args.weights),
-        imgsz=args.imgsz,
-        conf=args.conf,
-        iou=args.iou,
-        threads=args.threads,
-    )
+    try:
+        obstacles = detect_obstacles_from_image(
+            frame,
+            Path(args.weights),
+            imgsz=args.imgsz,
+            conf=args.conf,
+            iou=args.iou,
+            threads=args.threads,
+            device=args.device,
+        )
+    except Exception as exc:
+        print(f"Erreur lors de la détection: {exc}")
+        return
 
-    # Envoi UDP
+    print(f"{len(obstacles)} obstacle(s) détecté(s).")
+
     try:
         nbytes = send_obstacles_udp(obstacles, args.host, args.port)
-        print(f"{nbytes} octets envoyés à {args.host}:{args.port}")
+        print(f"Obstacles envoyés ({nbytes} octets) à {args.host}:{args.port}")
     except RuntimeError as e:
         print(f"Erreur UDP: {e}")
 
-    # Optionnel : affichage rapide avec annotation
-    annotated = frame.copy()
-    draw_detections_on_image(annotated, obstacles)
-    cv2.imshow("Detections", annotated)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if args.display:
+        annotated = frame.copy()
+        draw_detections_on_image(annotated, obstacles)
+        cv2.imshow("Detections", annotated)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

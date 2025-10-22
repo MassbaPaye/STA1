@@ -8,9 +8,25 @@
 
 
 // === Configuration des ports USB ===
+#ifdef __APPLE__
+#define USE_SERIAL               0
+#else
+#define USE_SERIAL               1
+#endif
+
+#if defined(__APPLE__)
+#define USE_MARVELMIND           0
+#else
 #define USE_MARVELMIND           1
+#endif
+
+#ifdef _WIN32
+#define DEFAULT_MEGAPI_PORT      "COM3"
+#define DEFAULT_MARVELMIND_PORT  "COM4"
+#else
 #define DEFAULT_MEGAPI_PORT      "/dev/ttyACM0"
 #define DEFAULT_MARVELMIND_PORT  "/dev/ttyUSB0"
+#endif
 #define MEGAPI_BAUDRATE          115200
 
 
