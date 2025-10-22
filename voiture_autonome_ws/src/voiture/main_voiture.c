@@ -14,6 +14,7 @@
 #include "communication_serie.h"
 #include "simulation_loc.h"
 #include "UDP_voiture.h"
+#include "Gestion_comportement.h"
 
 #define TAG "main"
 
@@ -21,6 +22,7 @@ pthread_t thread_localisation;
 pthread_t thread_communication_tcp;
 pthread_t thread_communication_udp;
 pthread_t thread_communication_serie;
+pthread_t thread_gestion_comportement;
 #ifdef SIMULATION
 pthread_t thread_simulation;
 #endif
@@ -102,6 +104,12 @@ int main(int argc, char *argv[]) {
     INFO(TAG, "= Communication TCP établie =");
     INFO(TAG, "=============================");
     
+    // Lancement du thread comportement
+    if (pthread_create(&thread_gestion_comportement, NULL, lancer_comportement, NULL) != 0) {
+        perror("Erreur pthread_create lancer comportement");
+        return EXIT_FAILURE;
+    }
+
     #ifdef SIMULATION
     // Lancement de la simulation
     if (pthread_create(&thread_simulation, NULL, lancer_simulateur, NULL) != 0) {

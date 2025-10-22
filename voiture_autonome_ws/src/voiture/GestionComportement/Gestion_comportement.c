@@ -10,6 +10,7 @@
 #include"config.h"
 #include"logger.h"
 #include"voiture_globals.h"
+#include"Reception_itineraire.h"
 
 #define TAG "traj_generator"
 
@@ -28,7 +29,7 @@ static inline float compute_vitesse_convergence(const PositionVoiture* pos) {
     return v;
 }
 
-int generate_trajectoire(int blocking) {
+int generate_trajectoire() {
     PositionVoiture pos;
     Itineraire iti;
     DonneesDetection Obj_detecte;
@@ -51,11 +52,6 @@ int generate_trajectoire(int blocking) {
 
     if(get_donnees_detection(&Obj_detecte) != 0){
         DBG(TAG, "Failure dans l'obtention des donnes de detection"); 
-        return -1;
-    }
-
-    if(get_consigne(&cons) != 0){
-        DBG(TAG, "Failure dans l'obtention de la consigne"); 
         return -1;
     }
     
@@ -128,18 +124,21 @@ int generate_trajectoire(int blocking) {
                     case PANNEAU_FIN_30:
                         traj.vitesse_max = (float)MAX_VITESSE;
                         break;
-                    case PANNEAU_SENS_UNIQUE:
-                        
-                        break;
                     case PONT:
                         do{
                             i = MAX_POINTS_TRAJECTOIRE;
                             Demande d = {0};
                             d.type = 1;
                             set_demande(&d);
+                            usleep(100000);
+                            if(get_consigne(&cons) != 0){
+                                DBG(TAG, "Failure dans l'obtention de la consigne"); 
+                                return -1;
+                            }
                         }while(cons.autorisation == 0);  
                         break;
                     default:
+
                         break;
                 }
             }
@@ -170,7 +169,21 @@ void handle_sigint(int sig) {
     printf("\n[%s] Interruption reçue (SIGINT). Arrêt du programme...\n", TAG);
 }
 
-int main_comportement(void) {
+void* lancer_comportement(void* arg) {
+    reception_itineraire();
+
+    PositionVoiture pos;
+
+    pos.x=807.0; 
+    pos.y= 1595.0;
+    pos.z=0;
+    pos.theta=0.0405;
+    pos.vx=0;
+    pos.vy=0;
+    pos.vz=0;
+
+    set_position(&pos);
+
     printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
 
     // Associe le signal SIGINT (Ctrl+C) à la fonction handle_sigint()
@@ -191,6 +204,21 @@ int main_comportement(void) {
             printf("[%s] Erreur lors de la génération de la trajectoire (code=%d)\n", TAG, gen_ret);
         } else {
             printf("[%s] Trajectoire générée avec succès.\n", TAG);
+        }
+
+        Trajectoire traj;
+        if (get_trajectoire(&traj) == 0) {
+            int nb_afficher = traj.nb_points < 5 ? traj.nb_points : 5;
+            printf("[%s] --- Aperçu des %d premiers points ---\n", TAG, nb_afficher);
+
+            for (int i = 0; i < nb_afficher; i++) {
+                printf("   Point %d -> x=%d, y=%d, z=%d, θ=%.2f\n",
+                        i, traj.points[i].x, traj.points[i].y, traj.points[i].z, traj.points[i].theta);
+            }
+
+            printf("[%s] -------------------------------------\n", TAG);
+        } else {
+            printf("[%s] Impossible de récupérer la trajectoire.\n", TAG);
         }
 
         // Attente avant la prochaine mise à jour (ici : 100 ms)
