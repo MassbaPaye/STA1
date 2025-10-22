@@ -5,6 +5,7 @@
 #include "config.h"
 #include <math.h>
 
+
 #define TAG "loc-fusion"
 
 // --- Variables internes ---
@@ -55,7 +56,7 @@ PositionOdom calculer_odometrie(void) {
 MarvelmindPosition mettre_a_jour_marvelmind_estimee(const PositionOdom* odom) {
     struct timespec t_now;
     clock_gettime(CLOCK_MONOTONIC, &t_now);
-
+    
     MarvelmindPosition mm_new_pos = get_marvelmind_position(true);
 
     // (1) Initialisation ou fusion si nouvelle mesure valide
@@ -78,6 +79,7 @@ MarvelmindPosition mettre_a_jour_marvelmind_estimee(const PositionOdom* odom) {
             marvelmind_estimee.z = FUSION_ODO_ALPHA * z_est + (1.0 - FUSION_ODO_ALPHA) * mm_new_pos.z;
             marvelmind_estimee.t = mm_new_pos.t;
             marvelmind_estimee.valid = true;
+
         }
     }
 
@@ -88,6 +90,9 @@ MarvelmindPosition mettre_a_jour_marvelmind_estimee(const PositionOdom* odom) {
                                   odom->vx, odom->vy, odom->vz, dt_proj);
         marvelmind_estimee.t = t_now;
     }
+
+
+
 
     return marvelmind_estimee;
 }

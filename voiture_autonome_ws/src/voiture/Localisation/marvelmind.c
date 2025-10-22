@@ -926,7 +926,7 @@ Marvelmind_Thread_ (void* param)
 
                         if (hedge->receiveDataCallback)
                         {
-                            if (dataId == POSITION_DATAGRAM_ID)
+                            if (dataId == POSITION_DATAGRAM_ID || dataId == POSITION_DATAGRAM_HIGHRES_ID)
                             {
                                 hedge->receiveDataCallback (curPosition);
                             }

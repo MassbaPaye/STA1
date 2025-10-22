@@ -1,3 +1,4 @@
+#include "utils.h"
 #include <stdio.h>
 #include <pthread.h>
 #include <time.h>
@@ -9,12 +10,12 @@
 #include "localisation_fusion.h"
 #include "voiture_globals.h"
 #include "config.h"
-#include "utils.h"
 
 #define TAG "loc-main"
 
+#define POSITION_LOG_FILE "position_log.csv"
 
-#define LOCALISATION_FREQ_HZ 3
+#define LOCALISATION_FREQ_HZ 20
 #define LOCALISATION_DT (1.0 / LOCALISATION_FREQ_HZ)
 
 bool running = false;
@@ -26,9 +27,12 @@ void update_localisation_ponderation()
 {
     odom_pos_estimee = calculer_odometrie();
     mm_pos_estimee = mettre_a_jour_marvelmind_estimee(&odom_pos_estimee);
+    INFO(TAG, "valid :%d", mm_pos_estimee.valid);
+    INFO(TAG, "USEMARVEL :%d", USE_MARVELMIND);
 
     // --- Fusion pondérée finale ---
     if (mm_pos_estimee.valid && USE_MARVELMIND) {
+        INFO(TAG, "x:%.1f, y%.1f", mm_pos_estimee.x, mm_pos_estimee.y);
         // Fusion pondérée entre odométrie et Marvelmind estimé
         pos_globale.x = FUSION_POSITION_GLOBALE_WEIGHT * odom_pos_estimee.x + 
                         (1.0 - FUSION_POSITION_GLOBALE_WEIGHT) * mm_pos_estimee.x;
@@ -49,6 +53,24 @@ void update_localisation_ponderation()
     pos_globale.theta = odom_pos_estimee.theta;
 
     // --- Mise à jour de la position globale partagée ---
+    PositionVoiture pos;
+    int r = get_position(&pos);
+    
+    FILE* f = fopen(POSITION_LOG_FILE, "a"); // mode "append"
+    if (f) {
+        struct timespec t_now;
+        clock_gettime(CLOCK_MONOTONIC, &t_now);
+        double timestamp_s = t_now.tv_sec + t_now.tv_nsec * 1e-9;
+        fprintf(f, "%.6f, %.3f, %.3f, %.3f, %.2f\n",
+                timestamp_s,
+                pos_globale.x,
+                pos_globale.y,
+                pos_globale.z,
+                pos_globale.theta);
+        fclose(f);
+    } else {
+        ERR(TAG, "Impossible d'ouvrir le fichier de log %s", POSITION_LOG_FILE);
+    }
     set_position(&pos_globale);
 
 }
@@ -58,8 +80,13 @@ void* lancer_localisation_thread(void* arg) {
     (void)arg;
     running = true;
 
-    INFO(TAG, "Thread de localisation démarré.");
-
+    FILE* f = fopen(POSITION_LOG_FILE, "w"); // mode "append"
+    if (f) {
+        fprintf(f, "t,x,y,z,theta\n");
+        fclose(f);
+    } else {
+        ERR(TAG, "Impossible d'ouvrir le fichier de log %s", POSITION_LOG_FILE);
+    }
 
     if (USE_MARVELMIND) {
         if (lancer_marvelmind() != 0) {

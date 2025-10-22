@@ -34,6 +34,7 @@ struct MarvelmindHedge *hedge;
 // ===========================
 
 static void positionCallback(struct PositionValue position) {
+    //INFO(TAG, "Position marvelmind recue");
     pthread_mutex_lock(&pos_mutex);
     current_position.x = (float) position.x;
     current_position.y = (float) position.y;
@@ -84,6 +85,7 @@ int lancer_marvelmind() {
     hedge->receiveDataCallback = positionCallback; // a definir
 
     startMarvelmindHedge(hedge);
+    INFO(TAG, "Marvelmind thread lancé, thread_id=%lu", hedge->thread_);
     
     INFO(TAG, "Thread Marvelmind lancé avec succès sur %s.", marvelmind_port);
     return 0;
@@ -126,7 +128,12 @@ int wait_for_position(int timeout_sec) {
     return (ret == 0) ? 0 : -1;
 }
 
+
 MarvelmindPosition get_marvelmind_position(bool change_to_read) {
+    //struct PositionValue pos;
+    //int r = getPositionFromMarvelmindHedge(hedge, &pos);
+    //INFO(TAG, "r=%d, x:%d", r, pos.x);
+
     pthread_mutex_lock(&pos_mutex);
     current_position.is_new = false;
     MarvelmindPosition pos_copy = current_position;
@@ -139,3 +146,4 @@ void _set_marvelmind_position(MarvelmindPosition pos) {
     current_position = pos;
     pthread_mutex_unlock(&pos_mutex);
 }
+

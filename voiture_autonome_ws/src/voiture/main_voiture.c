@@ -13,6 +13,7 @@
 #include "communication_tcp_voiture.h"
 #include "communication_serie.h"
 #include "simulation_loc.h"
+#include "marvelmind.h"
 
 #define TAG "main"
 
@@ -90,7 +91,7 @@ int main(int argc, char *argv[]) {
     INFO(TAG, "=============================");
     INFO(TAG, "= Communication TCP établie =");
     INFO(TAG, "=============================");
-    
+
     #ifdef SIMULATION
     // Lancement de la simulation
     if (pthread_create(&thread_simulation, NULL, lancer_simulateur, NULL) != 0) {

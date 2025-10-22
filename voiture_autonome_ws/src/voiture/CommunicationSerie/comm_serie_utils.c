@@ -5,6 +5,11 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
+#include "utils.h"
+#include "logger.h"
+#include "config.h"
+
+#define TAG "comm_serie-utils"
 
 int open_serial_port(const char* port_name, int baudrate) {
     int fd = open(port_name, O_RDWR | O_NOCTTY | O_SYNC);
@@ -12,10 +17,12 @@ int open_serial_port(const char* port_name, int baudrate) {
 
     struct termios tty;
     memset(&tty, 0, sizeof(tty));
-    if (tcgetattr(fd, &tty) != 0) { perror("tcgetattr"); close(fd); return -1; }
+    if (tcgetattr(fd, &tty) != 0) { perror("tcgetattr"); close(fd); 
+        printf("probleme la\n");
+        return -1; }
 
-    cfsetospeed(&tty, baudrate == 115200 ? B115200 : B9600);
-    cfsetispeed(&tty, baudrate == 115200 ? B115200 : B9600);
+    cfsetospeed(&tty, MEGAPI_BAUDRATE);
+    cfsetispeed(&tty, MEGAPI_BAUDRATE);
 
     tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
     tty.c_iflag &= ~IGNBRK;
@@ -29,7 +36,11 @@ int open_serial_port(const char* port_name, int baudrate) {
     tty.c_cflag &= ~CSTOPB;
     tty.c_cflag &= ~CRTSCTS;
 
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) { perror("tcsetattr"); close(fd); return -1; }
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) { perror("tcsetattr"); close(fd); 
+        printf("Probleme ici\n");
+        return -1; }
+
+    INFO(TAG, "fd = %d", fd);
 
     return fd;
 }

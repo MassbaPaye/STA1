@@ -64,8 +64,10 @@ void* lancer_communication_serie() {
         fd_serial = 0;
     } else {
         fd_serial = open_serial_port(megapi_port, MEGAPI_BAUDRATE);
-        ERR(TAG, "Erreur lors de l'ouverture du port %s à %d bauds", megapi_port, MEGAPI_BAUDRATE);
-        if (fd_serial < 0) return NULL;
+        if (fd_serial < 0) {
+            ERR(TAG, "Erreur lors de l'ouverture du port %s à %d bauds", megapi_port, MEGAPI_BAUDRATE);
+            return NULL;
+        }
     }
 
     if (pthread_create(&read_thread, NULL, thread_read, NULL) != 0) {
