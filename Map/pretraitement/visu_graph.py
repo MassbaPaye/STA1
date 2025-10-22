@@ -2,8 +2,8 @@ import csv
 import math
 import matplotlib.pyplot as plt
 
-NODES_FILE = "graph_data/nodes.csv"
-ARCS_FILE = "graph_data/arcs.csv"
+NODES_FILE = "graph_data/nodes_copy.csv"
+ARCS_FILE = "graph_data/arcs_oriented_copy.csv"
 
 def load_nodes(path):
     nodes = {}
