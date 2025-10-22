@@ -177,7 +177,8 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
     if not sparse_path:
         return []
     p1 = sparse_path[0]
-    dense_points_xy.append((p1['x'], p1['y']))
+    # Stocke (x, y, pont_flag, depass_flag)
+    dense_points_xy.append((p1['x'], p1['y'], 0, 0)) # <-- MODIFIÉ
 
     for i in range(len(sparse_path) - 1):
         p1 = sparse_path[i]
@@ -185,6 +186,12 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
         u, v = p1['id'], p2['id']
         
         arc_info = arc_lookup.get((u, v)) 
+        
+        pont_flag = 0
+        depass_flag = 0 # <-- AJOUTÉ
+        if arc_info:
+            pont_flag = arc_info.get('pont', 0)
+            depass_flag = arc_info.get('depass', 0) # <-- AJOUTÉ
 
         p1_xy = np.array([p1['x'], p1['y']])
         p2_xy = np.array([p2['x'], p2['y']])
@@ -208,7 +215,7 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
             xs = np.linspace(p1['x'], p2['x'], num_steps)
             ys = np.linspace(p1['y'], p2['y'], num_steps)
             for j in range(1, num_steps):
-                dense_points_xy.append((xs[j], ys[j]))
+                dense_points_xy.append((xs[j], ys[j], pont_flag, depass_flag)) # <-- MODIFIÉ
         else:
             cx, cy = center_tuple
             abs_radius = abs(radius)
@@ -225,12 +232,13 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
                 a = angles[j]
                 x = cx + abs_radius * math.cos(a)
                 y = cy + abs_radius * math.sin(a)
-                dense_points_xy.append((x, y))
+                dense_points_xy.append((x, y, pont_flag, depass_flag)) # <-- MODIFIÉ
 
     final_trajectory = []
     for k in range(len(dense_points_xy)):
         current_p = dense_points_xy[k]
-        x, y = current_p[0], current_p[1]
+        x, y, pont_flag, depass_flag = current_p[0], current_p[1], current_p[2], current_p[3] # <-- MODIFIÉ
+        
         if k < len(dense_points_xy) - 1:
             next_p = dense_points_xy[k+1]
             dx = next_p[0] - x
@@ -238,12 +246,15 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
             theta = math.degrees(math.atan2(dy, dx))
         else:
             theta = final_trajectory[-1]['theta'] if final_trajectory else 0.0
+            
         final_trajectory.append({
             'id': k,
             'x': round(x, 4),
             'y': round(y, 4),
             'z': 0,
-            'theta': round(theta, 4)
+            'theta': round(theta, 4),
+            'pont': pont_flag,
+            'depass': depass_flag # <-- AJOUTÉ
         })
     return final_trajectory
 
@@ -253,7 +264,7 @@ def save_dense_path(file_path, trajectory):
         print("Avertissement : Trajectoire vide, aucun fichier de sortie généré.")
         return
     with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
-        fieldnames = ["id", "x", "y", "z", "theta"]
+        fieldnames = ["id", "x", "y", "z", "theta", "pont", "depass"] # <-- MODIFIÉ
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(trajectory)
@@ -278,6 +289,8 @@ def visualize_final_path(dense_trajectory, nodes_file, arcs_file):
     for (u, v, r, _, _, _) in arcs_full:
         if u not in nodes or v not in nodes: continue
         p1, p2 = nodes[u], nodes[v]
+        # Note : On ne peut pas récupérer BRIDGE_ARCS et DEPASS ici facilement
+        # sans les passer en paramètre, donc on garde l'affichage de base.
         draw_arc(ax, p1, p2, r, color="green" if not math.isinf(r) else "cyan", linewidth=1.5, alpha=0.5)
 
     if nodes:
@@ -287,15 +300,27 @@ def visualize_final_path(dense_trajectory, nodes_file, arcs_file):
     dense_xs = [p['x'] for p in dense_trajectory]
     dense_ys = [p['y'] for p in dense_trajectory]
     
+    pont_xs = [p['x'] for p in dense_trajectory if p['pont'] == 1]
+    pont_ys = [p['y'] for p in dense_trajectory if p['pont'] == 1]
+    
+    depass_xs = [p['x'] for p in dense_trajectory if p['depass'] == 1] # <-- AJOUTÉ
+    depass_ys = [p['y'] for p in dense_trajectory if p['depass'] == 1] # <-- AJOUTÉ
+
+    if pont_xs:
+        ax.scatter(pont_xs, pont_ys, color='gray', s=15, zorder=9, label='Pont')
+        
+    if depass_xs: # <-- AJOUTÉ
+        ax.scatter(depass_xs, depass_ys, color='orange', s=15, zorder=9, label='Dépassement') # <-- AJOUTÉ
+
     ax.plot(dense_xs, dense_ys, color='magenta', linewidth=2.5, zorder=10, label='Itinéraire Dense')
     
     ax.scatter([dense_xs[0]], [dense_ys[0]], color='red', s=100, zorder=11, label='Départ')
-    # MODIFIÉ : Le label et la couleur correspondent au point projeté
     ax.scatter([dense_xs[-1]], [dense_ys[-1]], color='cyan', s=100, marker='X', zorder=11, label='Arrivée (Projetée)')
 
     ax.set_title("Visualisation de l'Itinéraire Dense")
     ax.legend()
     plt.grid(True, linestyle='--', alpha=0.3)
+    
     print("Affichage du graphique final... Fermez la fenêtre pour terminer.")
     plt.show()
 
@@ -304,6 +329,15 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     Fonction principale qui orchestre le calcul de chemin,
     la sélection interactive, et l'interpolation.
     """
+    
+    # --- DÉFINITION DES ARCS DU PONT (Mis à jour) ---
+    BRIDGE_ARCS = {
+        (23, 24), (24, 23), (23,21), (21,23), (21,22), (37,24), (24,25), (15, 16), (17,14)
+    }
+
+    DEPASS = {
+        (20,19), (18,21), (29,30), (30,31), (31,32), (32,10), (11,33), (33,34), (34,35), (35,55), (55,36) # <-- MODIFIÉ (virgules)
+    }
     
     try:
         data = pd.read_csv(fichier_csv)
@@ -325,7 +359,20 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     for (u, v, r, length, cx, cy) in arcs:
         if u not in nodes or v not in nodes: continue
         p1, p2 = nodes[u], nodes[v]
-        draw_arc(ax, p1, p2, r, color="green" if not math.isinf(r) else "cyan", linewidth=2)
+        is_bridge = (u, v) in BRIDGE_ARCS
+        is_depass = (u, v) in DEPASS
+        
+        color = "cyan" # Couleur par défaut (ligne)
+        if is_bridge:
+            color = "gray"
+        elif is_depass:
+            color = "orange" # <-- AJOUTÉ
+        elif not math.isinf(r):
+            color = "green" # Couleur arc
+            
+        alpha = 0.8 if is_bridge or is_depass else 1.0 # <-- MODIFIÉ
+        draw_arc(ax, p1, p2, r, color=color, linewidth=2, alpha=alpha)
+
 
     xs, ys = zip(*[nodes[i] for i in nodes])
     ax.scatter(xs, ys, s=30, color="blue", zorder=5)
@@ -419,35 +466,49 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         u = int(row['u'])
         v = int(row['v'])
         length = float(row['length'])
-        radius = row['radius']
-        G.add_edge(u, v, weight=length, radius=radius)
+        radius = float("inf") if row["radius"] == "inf" else float(row["radius"])
+        
+        pont = 1 if (u, v) in BRIDGE_ARCS else 0
+        deppass = 1 if (u, v) in DEPASS else 0
+            
+        G.add_edge(u, v, weight=length, radius=radius, pont=pont, depass=deppass) # <-- MODIFIÉ
 
     node_id_list = data['id'].to_numpy(dtype=int)
     
-    # --- MODIFIÉ : Logique de modification du graphe ---
     max_id = max(list(G.nodes()))
     
     idx_proj_start = max_id + 1
     idx_start = max_id + 2
-    idx_proj_end = max_id + 3 # Le clic (idx_end) n'est plus nécessaire
+    idx_proj_end = max_id + 3 
     
-    # Ajouter les noeuds
     G.add_node(idx_start, pos=tuple(voiture_xy))
     G.add_node(idx_proj_start, pos=tuple(proj_point_start))
     G.add_node(idx_proj_end, pos=tuple(proj_point_end))
     
-    # Ajouter l'arête "off-road" du départ
-    G.add_edge(idx_start, idx_proj_start, weight=min_dist_start, radius=float('inf'))
+    G.add_edge(idx_start, idx_proj_start, weight=min_dist_start, radius=float('inf'), pont=0, depass=0) # <-- MODIFIÉ
     
-    # (L'arête "off-road" d'arrivée idx_proj_end -> idx_end est supprimée)
-
-    # Gérer la modification des arcs du circuit
     u_s, v_s, r_s, _, _, _ = best_arc_start
     u_e, v_e, r_e, _, _, _ = best_arc_end
     
-    attrs_s = G.edges[u_s, v_s] if G.has_edge(u_s, v_s) else {'radius': r_s}
-    attrs_e = G.edges[u_e, v_e] if G.has_edge(u_e, v_e) else {'radius': r_e}
+    # --- Récupération des attributs (y compris depass) ---
+    attrs_s = G.edges[u_s, v_s] if G.has_edge(u_s, v_s) else {
+        'radius': r_s, 
+        'pont': 1 if (u_s, v_s) in BRIDGE_ARCS else 0,
+        'depass': 1 if (u_s, v_s) in DEPASS else 0 # <-- AJOUTÉ
+    }
+    attrs_e = G.edges[u_e, v_e] if G.has_edge(u_e, v_e) else {
+        'radius': r_e, 
+        'pont': 1 if (u_e, v_e) in BRIDGE_ARCS else 0,
+        'depass': 1 if (u_e, v_e) in DEPASS else 0 # <-- AJOUTÉ
+    }
     
+    pont_s = attrs_s.get('pont', 0)
+    depass_s = attrs_s.get('depass', 0) # <-- AJOUTÉ
+    pont_e = attrs_e.get('pont', 0)
+    depass_e = attrs_e.get('depass', 0) # <-- AJOUTÉ
+    # --- Fin récupération attributs ---
+
+
     if (u_s, v_s) == (u_e, v_e):
         print("Cas: Départ et arrivée sur le même arc.")
         u, v, radius = u_s, v_s, r_s
@@ -463,16 +524,16 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
             len_s_e = get_arc_segment_length(proj_point_start, proj_point_end, radius)
             len_e_v = get_arc_segment_length(proj_point_end, p2, radius)
             
-            G.add_edge(u, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'])
-            G.add_edge(idx_proj_start, idx_proj_end, weight=len_s_e, radius=attrs_s['radius'])
-            G.add_edge(idx_proj_end, v, weight=len_e_v, radius=attrs_s['radius'])
+            G.add_edge(u, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(idx_proj_start, idx_proj_end, weight=len_s_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(idx_proj_end, v, weight=len_e_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
         else:
             len_e_s = get_arc_segment_length(proj_point_end, proj_point_start, radius)
             len_s_v = get_arc_segment_length(proj_point_start, p2, radius)
 
-            G.add_edge(u, idx_proj_end, weight=len_u_proj_e, radius=attrs_s['radius'])
-            G.add_edge(idx_proj_end, idx_proj_start, weight=len_e_s, radius=attrs_s['radius'])
-            G.add_edge(idx_proj_start, v, weight=len_s_v, radius=attrs_s['radius'])
+            G.add_edge(u, idx_proj_end, weight=len_u_proj_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(idx_proj_end, idx_proj_start, weight=len_e_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(idx_proj_start, v, weight=len_s_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
     else:
         print("Cas: Départ et arrivée sur des arcs différents.")
         
@@ -482,8 +543,8 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         
         if G.has_edge(u_s, v_s):
             G.remove_edge(u_s, v_s)
-            G.add_edge(u_s, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'])
-            G.add_edge(idx_proj_start, v_s, weight=len_proj_v_s, radius=attrs_s['radius'])
+            G.add_edge(u_s, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(idx_proj_start, v_s, weight=len_proj_v_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
         
         p1_e, p2_e = nodes[u_e], nodes[v_e]
         len_u_proj_e = get_arc_segment_length(p1_e, proj_point_end, r_e)
@@ -491,14 +552,11 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
 
         if G.has_edge(u_e, v_e):
             G.remove_edge(u_e, v_e)
-            G.add_edge(u_e, idx_proj_end, weight=len_u_proj_e, radius=attrs_e['radius'])
-            G.add_edge(idx_proj_end, v_e, weight=len_proj_v_e, radius=attrs_e['radius'])
+            G.add_edge(u_e, idx_proj_end, weight=len_u_proj_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) # <-- MODIFIÉ
+            G.add_edge(idx_proj_end, v_e, weight=len_proj_v_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) # <-- MODIFIÉ
     
-    # MODIFIÉ : La cible est maintenant le point projeté
     indices_selected = [idx_start, idx_proj_end]
     
-    # --- Fin de la modification du graphe ---
-
     # === 3. Calcul du chemin "Sparse" ===
     
     start, end = indices_selected
@@ -528,7 +586,6 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         if i < len(path_coords) - 1:
             theta = float(calculer_theta(path_coords[i], path_coords[i + 1]))
         else:
-            # Pour le dernier point, on garde l'orientation du segment précédent
             theta = itineraire_points_sparse[-1]['theta'] if itineraire_points_sparse else 0.0
         
         itineraire_points_sparse.append({
@@ -552,7 +609,9 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     arc_lookup_from_graph = {}
     for u, v, data in G.edges(data=True):
         arc_lookup_from_graph[(u, v)] = {
-            'radius': data.get('radius', float('inf'))
+            'radius': data.get('radius', float('inf')),
+            'pont': data.get('pont', 0),
+            'depass': data.get('depass', 0) # <-- AJOUTÉ
         }
     
     print(f"Interpolation de la trajectoire (pas de {STEP_SIZE_MM} mm)...")
