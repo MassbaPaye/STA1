@@ -69,6 +69,7 @@ void* initialisation_communication_camera(void* arg) {
         printf("📩 Message reçu de %s:%d\n", sender_ip, ntohs(sender_addr.sin_port));
         printf("Contenu JSON (%d octets) :\n%s\n\n", n, buffer);
         fflush(stdout);
+        
     }
 
     close(sockfd);
