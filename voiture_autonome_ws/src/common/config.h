@@ -4,13 +4,13 @@
 
 // === Configuration réseau du controleur ===
 #define TCP_PORT              5000
-#define CONTROLEUR_IP         "127.0.0.1"
+#define CONTROLEUR_IP         "192.168.8.130"
 
 
 // === Configuration des ports USB ===
 #define USE_MARVELMIND           1
-#define DEFAULT_MEGAPI_PORT      "/dev/ttyACM0"
-#define DEFAULT_MARVELMIND_PORT  "/dev/ttyUSB0"
+#define DEFAULT_MEGAPI_PORT      "/dev/ttyUSB0"
+#define DEFAULT_MARVELMIND_PORT  "/dev/ttyACM0"
 #define MEGAPI_BAUDRATE          115200
 
 
