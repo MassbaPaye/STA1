@@ -6,6 +6,9 @@
 #include <signal.h>
 
 #include"messages.h"
+#include"utils.h"
+#include"config.h"
+#include"logger.h"
 #include"voiture_globals.h"
 
 #define TAG "traj_generator"
@@ -102,7 +105,7 @@ int generate_trajectoire(int blocking) {
 
     int start = best_idx - 1;
     if(best_idx == 0){
-        start == 0;
+        start = 0;
     }
     for (int i = start; i < iti.nb_points && traj.nb_points < MAX_POINTS_TRAJECTOIRE; i++) {
         traj.points[traj.nb_points++] = iti.points[i];
@@ -135,6 +138,8 @@ int generate_trajectoire(int blocking) {
                             d.type = 1;
                             set_demande(&d);
                         }while(cons.autorisation == 0);  
+                        break;
+                    default:
                         break;
                 }
             }
