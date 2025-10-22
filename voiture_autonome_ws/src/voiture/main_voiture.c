@@ -130,6 +130,7 @@ int main(int argc, char *argv[]) {
     */
    
     // Attendre la fin du thread (ici il tourne en boucle infinie)
+    stop_comportement();
     pthread_join(thread_communication_udp, NULL);
 
     getchar();
