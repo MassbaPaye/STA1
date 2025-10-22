@@ -39,8 +39,7 @@ python_env\venv\Scripts\activate.bat
 
 4. Installer les dépendances du projet :
 
-pip install -r python_env/requirements.txt
-
+ 
 ---
 
 Utilisation
