@@ -15,7 +15,7 @@ all: $(OBJ)
 
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -c $< -o $@
 	@echo "✅ $< compilé"
 
 clean:

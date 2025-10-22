@@ -48,7 +48,7 @@ modules:
 $(CONTROLEUR_BUILD)/%.o: $(CONTROLEUR_DIR)/%.c
 	@mkdir -p $(CONTROLEUR_BUILD)
 # @echo "\n⚙️  Compilation des fichiers principaux"
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 	@echo "✅ $$(basename $<) compilé"
 
 dir_objs: $(CONTROLEUR_OBJS)
