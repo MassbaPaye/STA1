@@ -370,15 +370,17 @@ def _bbox_to_coordinate_points(
         y=_pixel_to_signed_normalized(bottom_y, h),
     )
 
-    # Profondeur approchée : plus la boîte est basse, plus elle est proche (valeur dans [-1,1])
-    depth = -_pixel_to_signed_normalized(bottom_y, h)
+    # 4) "Profondeur relative" = largeur apparente de la bbox ppur les panneaux qu'on va stocker dans z 
+    #    soit en pixels, soit normalisée par la largeur image
+    width_px = abs(x2 - x1)
+    depth_rel = width_px / w  # valeur normalisée entre 0 et 1
 
     # Orientation : on projette le centre sur l'angle horizontal de la caméra
     hfov_rad = math.radians(CAMERA_HORIZONTAL_FOV_DEG)
     theta = _pixel_to_signed_normalized(center_x, w) * (hfov_rad / 2.0)
 
-    left_point.z = depth
-    right_point.z = depth
+    left_point.z = depth_rel
+    right_point.z = depth_rel
     left_point.theta = theta
     right_point.theta = theta
 
