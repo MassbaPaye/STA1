@@ -120,7 +120,8 @@ int main(int argc, char *argv[]) {
     exemple_module("Message du module d'exemple");
     INFO(TAG, "res=%d\n", affiche_position_actuelle());
     */
-       // Attendre la fin du thread (ici il tourne en boucle infinie)
+   
+    // Attendre la fin du thread (ici il tourne en boucle infinie)
     pthread_join(thread_communication_udp, NULL);
 
     getchar();

@@ -697,7 +697,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Détection + envoi UDP des obstacles")
     parser.add_argument("--source", default="0", help="Caméra ou fichier vidéo/image")
-    parser.add_argument("--host", default="192.168.0.10", help="IP du Raspberry Pi récepteur")
+    parser.add_argument("--host", default="127.0.0.1", help="IP du Raspberry Pi récepteur")
     parser.add_argument("--port", type=int, default=5005, help="Port UDP")
     parser.add_argument("--weights", default=str(DEFAULT_TFLITE_WEIGHTS))
     parser.add_argument("--imgsz", type=int, default=640)
@@ -735,4 +735,4 @@ def main():
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    main_udp()
+    main()
