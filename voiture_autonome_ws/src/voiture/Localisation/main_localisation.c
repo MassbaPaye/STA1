@@ -54,7 +54,7 @@ void update_localisation_ponderation()
 
     // --- Mise à jour de la position globale partagée ---
     PositionVoiture pos;
-    int r = get_position(&pos);
+    get_position(&pos);
     
     FILE* f = fopen(POSITION_LOG_FILE, "a"); // mode "append"
     if (f) {

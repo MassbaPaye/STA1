@@ -60,7 +60,7 @@ COMMON_OBJS := $(patsubst $(COMMON_DIR)/%.c,$(COMMON_BUILD)/%.o,$(COMMON_SRCS))
 common: $(COMMON_OBJS)
 $(COMMON_BUILD)/%.o: $(COMMON_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDES_TOOLS) $(INCLUDES_COMMON) -c $< -o $@
+	@$(CC) $(CFLAGS) $(INCLUDES_TOOLS) $(INCLUDES_COMMON) -c $< -o $@
 
 # ========= VOITURE =========
 VOITURE_DIR := $(SRC_DIR)/voiture
