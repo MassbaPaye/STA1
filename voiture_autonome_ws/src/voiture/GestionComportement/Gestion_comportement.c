@@ -162,12 +162,6 @@ int generate_trajectoire() {
 
 static volatile bool continuer_execution = true;
 
-// Fonction appelée automatiquement quand on appuie sur Ctrl+C
-void handle_sigint(int sig) {
-    (void)sig; // évite un avertissement "unused parameter"
-    continuer_execution = false;
-    printf("\n[%s] Interruption reçue (SIGINT). Arrêt du programme...\n", TAG);
-}
 
 void* lancer_comportement(void* arg) {
     reception_itineraire();
@@ -185,9 +179,6 @@ void* lancer_comportement(void* arg) {
     set_position(&pos);
 
     printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
-
-    // Associe le signal SIGINT (Ctrl+C) à la fonction handle_sigint()
-    signal(SIGINT, handle_sigint);
 
     while (continuer_execution) {
         Itineraire iti;
@@ -227,4 +218,8 @@ void* lancer_comportement(void* arg) {
 
     printf("[%s] Fin du programme.\n", TAG);
     return 0;
+}
+
+void stop_comportement() {
+    continuer_execution = false;
 }
