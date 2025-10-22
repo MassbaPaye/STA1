@@ -49,7 +49,7 @@ int charger_itineraire_csv(const char* chemin_fichier) {
         Point p = {0};
         int id = 0;
         // Format attendu : x,y,z,theta
-        if (sscanf(ligne, "%d,%d,%d,%d,%f", &id, &p.x, &p.y, &p.z, &p.theta) != 4) {
+        if (sscanf(ligne, "%d,%f,%f,%f,%f", &id, &p.x, &p.y, &p.z, &p.theta) != 4) {
             DBG(TAG, "Ligne CSV invalide : %s", ligne);
             continue;
         }
@@ -76,7 +76,7 @@ int charger_itineraire_csv(const char* chemin_fichier) {
 }
 
 int reception_itineraire() {
-    if (charger_itineraire_csv("STA1/calcul_itinéraire/itineraire_dense.csv") != 0) {
+    if (charger_itineraire_csv("itineraire_dense.csv") != 0) {
         printf("Erreur lors du chargement de l'itinéraire.\n");
         return -1;
     }

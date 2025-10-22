@@ -47,9 +47,9 @@ typedef enum {
      - Position d'une voiture (x, y, theta) ou (x, y, z, theta)
 */
 typedef struct {
-    int x; // mm
-    int y; // mm
-    int z; // mm
+    float x; // mm
+    float y; // mm
+    float z; // mm
     float theta; // degrés
 } Point;
 
