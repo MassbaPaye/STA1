@@ -212,7 +212,7 @@ void* lancer_comportement(void* arg) {
             printf("[%s] --- Aperçu des %d premiers points ---\n", TAG, nb_afficher);
 
             for (int i = 0; i < nb_afficher; i++) {
-                printf("   Point %d -> x=%d, y=%d, z=%d, θ=%.2f\n",
+                printf("   Point %d -> x=%.2f, y=%.2f, z=%.2f, θ=%.2f\n",
                         i, traj.points[i].x, traj.points[i].y, traj.points[i].z, traj.points[i].theta);
             }
 

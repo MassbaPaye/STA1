@@ -49,19 +49,17 @@ void* initialisation_communication_camera(void* arg) {
 
         DonneesDetection *detection = parse_json_to_donnees(buffer);
         set_donnees_detection(detection);
-        DonneesDetection *detection2;
-        get_donnees_detection(detection2);
+        DonneesDetection detection2;
 
-        if (detection2) {
-            printf("Nombre d’obstacles détectés : %d\n", detection2->count);
-            for (int i = 0; i < detection2->count; i++) {
-                printf("→ Obstacle %d : type=%d, pointG=(%d,%d,%d), pointD=(%d,%d,%d)\n",
+        if (get_donnees_detection(&detection2)) {
+            printf("Nombre d’obstacles détectés : %d\n", detection2.count);
+            for (int i = 0; i < detection2.count; i++) {
+                printf("→ Obstacle %d : type=%d, pointG=(%f,%f,%f), pointD=(%f,%f,%f)\n",
                     i,
-                    detection2->obstacle[i].type,
-                    detection2->obstacle[i].pointg.x, detection2->obstacle[i].pointg.y, detection2->obstacle[i].pointg.z,
-                    detection2->obstacle[i].pointd.x, detection2->obstacle[i].pointd.y, detection2->obstacle[i].pointd.z);
+                    detection2.obstacle[i].type,
+                    detection2.obstacle[i].pointg.x, detection2.obstacle[i].pointg.y, detection2.obstacle[i].pointg.z,
+                    detection2.obstacle[i].pointd.x, detection2.obstacle[i].pointd.y, detection2.obstacle[i].pointd.z);
             }
-            free(detection2);
         }
 
         char sender_ip[INET_ADDRSTRLEN];
