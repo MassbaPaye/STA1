@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include"messages.h"
 #include"voiture_globals.h"
@@ -154,6 +156,8 @@ int generate_trajectoire(int blocking) {
     return 0;
 }
 
+static volatile bool continuer_execution = true;
+
 // Fonction appelée automatiquement quand on appuie sur Ctrl+C
 void handle_sigint(int sig) {
     (void)sig; // évite un avertissement "unused parameter"
@@ -161,7 +165,7 @@ void handle_sigint(int sig) {
     printf("\n[%s] Interruption reçue (SIGINT). Arrêt du programme...\n", TAG);
 }
 
-int main(void) {
+int main_comportement(void) {
     printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
 
     // Associe le signal SIGINT (Ctrl+C) à la fonction handle_sigint()
@@ -169,7 +173,7 @@ int main(void) {
 
     while (continuer_execution) {
         Itineraire iti;
-        int ret = get_itineraire(&iti, 0);
+        int ret = get_itineraire(&iti);
 
         if (ret != 0 || iti.nb_points <= 0 || iti.points == NULL) {
             printf("[%s] Aucun itinéraire disponible. Nouvelle tentative dans 0.5s...\n", TAG);

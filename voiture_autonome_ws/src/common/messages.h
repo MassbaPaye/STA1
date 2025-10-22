@@ -68,7 +68,6 @@ typedef struct {
     char direction; // ex: "n" ou "s"
 } Demande;
 
-
 /*  Message TCP C/V : Itinéraire 
     Tache émetrice : Planificateur d'itinéraire
     Tache réceptrice : Gestion de comportement
