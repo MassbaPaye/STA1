@@ -130,10 +130,10 @@ int main(int argc, char *argv[]) {
     */
    
     // Attendre la fin du thread (ici il tourne en boucle infinie)
-    stop_comportement();
     pthread_join(thread_communication_udp, NULL);
-
+    
     getchar();
+    stop_comportement();
     stop_communication_serie();
     stop_localisation();
     deconnecter_controleur();
