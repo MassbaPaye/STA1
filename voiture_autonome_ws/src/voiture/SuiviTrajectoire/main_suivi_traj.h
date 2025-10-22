@@ -1,4 +1,4 @@
-#ifndef MAIN_TRAJECTOIRE_H
+/*#ifndef MAIN_TRAJECTOIRE_H
 #define MAIN_TRAJECTOIRE_H
 
 #include <stdbool.h>
@@ -16,3 +16,4 @@ bool est_trajectoire_active(void);
 
 #endif
 
+*/
