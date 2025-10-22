@@ -10,7 +10,7 @@ void gerer_demande(int id){
     Consigne *c = malloc(sizeof(Consigne));
     while (size_demande_queue() > 0){
         dequeue_demande(d);
-        if (d->type_operation == 1){
+        if (d->type == 1){
             if ( structure[d->structure_id].etat == 0 ){
                 structure[d->structure_id].etat = 1;
                 structure[d->structure_id].id = id;
@@ -24,7 +24,7 @@ void gerer_demande(int id){
                 sendMessage(id, MESSAGE_CONSIGNE, c);
             }
         }
-        if (d->type_operation == 0){
+        if (d->type == 0){
             structure[d->structure_id].etat = 0;
             structure[d->structure_id].id = -1;
             printf("etat = %d, id = %d \n", structure[d->structure_id].etat, structure[d->structure_id].id);

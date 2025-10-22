@@ -40,7 +40,7 @@ void* thread_periodique(void* arg) {
         pos.vy = b;
         pos.vz = b;
         d.structure_id = 1;
-        d.type_operation = a;
+        d.type = a;
         sendMessage(MESSAGE_DEMANDE, &d);
         sendMessage(MESSAGE_POSITION, &pos);
         if (a == RESERVATION_STRUCTURE){
