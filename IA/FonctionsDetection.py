@@ -360,7 +360,7 @@ def _bbox_to_coordinate_points(
     center_x = (x1 + x2) / 2.0
     center_y = (y1 + y2) / 2.0
 
-    # Coordonnées normalisées
+    # Coordonnées normalisées   # question Victor normalement on devrait pas mettre y la distance qu'on calcul avec notre modèle expérimental, et en X la position latérale par rapport à la voiture avec Y*tan(theta-droite),Y*tan(theta gauche)
     left_point = Point(
         x=_pixel_to_signed_normalized(x1, w),
         y=_pixel_to_signed_normalized(bottom_y, h),
