@@ -3,6 +3,8 @@
 #include "config.h"
 #include <time.h>
 #include <string.h>
+#include "messages.h"
+#include "math.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -80,4 +82,8 @@ void my_sleep(double t_s)
     }
     nanosleep(&sleep_ts, NULL);
 #endif
+}
+
+float distance_from_car(PositionVoiture pv, Point p) {
+    return sqrt((pv.x-p.x)*(pv.x-p.x) - (pv.y-p.y)*(pv.y-p.y));
 }

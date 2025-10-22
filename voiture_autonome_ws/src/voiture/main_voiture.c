@@ -137,11 +137,8 @@ int main(int argc, char *argv[]) {
     pthread_join(thread_communication_udp, NULL);
     
     getchar();
-<<<<<<< HEAD
     stop_comportement();
-=======
 #if USE_SERIAL
->>>>>>> b371a65 (Model Lourd IA Fonctionnel)
     stop_communication_serie();
 #endif
     stop_localisation();
