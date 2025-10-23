@@ -71,7 +71,7 @@ int generate_trajectoire() {
                 p_moyen.x = (Obj_detecte.obstacle[j].pointd.x + Obj_detecte.obstacle[j].pointg.x) / 2.0f;
                 p_moyen.y = (Obj_detecte.obstacle[j].pointd.y + Obj_detecte.obstacle[j].pointg.y) / 2.0f;
                 p_moyen.z = (Obj_detecte.obstacle[j].pointd.z + Obj_detecte.obstacle[j].pointg.z) / 2.0f;
-                long long dist_obs2 = dist2_point_pos(&p_moyen, &pos);
+                long long dist_obs2 = dist2_point_pos(&p_moyen, 0);
                 if(d2 > dist_obs2 && check_obstacle[j] == 0){
                     point_arret[j] = i - 1;
                     check_obstacle[j] = 1;
@@ -109,7 +109,11 @@ int generate_trajectoire() {
             if(i == point_arret[j]){
                 switch (Obj_detecte.obstacle[j].type){
                     case OBSTACLE_VOITURE:
-                        
+                        if(iti.points[i].depacement == 0){
+                            i = MAX_POINTS_TRAJECTOIRE;
+                        }else{
+
+                        }
                         break;
                     case PANNEAU_LIMITATION_30:
                         traj.vitesse_max = 30;
@@ -156,7 +160,7 @@ int generate_trajectoire() {
         return -1;
     }
 
-    DBG(TAG, "Trajectoire gerée avec %d points (best_idx=%d, best_d2=%lld)", traj.nb_points, best_idx, best_d2);
+    DBG(TAG, "Trajectoire gerée avec %d points (best_idx=%d)", traj.nb_points, best_idx);
     return 0;
 }
 
@@ -166,22 +170,11 @@ static volatile bool continuer_execution = true;
 void* lancer_comportement(void* arg) {
     reception_itineraire();
 
-    PositionVoiture pos;
-
-    pos.x=807.0; 
-    pos.y= 1595.0;
-    pos.z=0;
-    pos.theta=0.0405;
-    pos.vx=0;
-    pos.vy=0;
-    pos.vz=0;
-
-    set_position(&pos);
-
     printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
-
+    
     while (continuer_execution) {
         Itineraire iti;
+
         int ret = get_itineraire(&iti);
 
         if (ret != 0 || iti.nb_points <= 0 || iti.points == NULL) {
@@ -211,7 +204,6 @@ void* lancer_comportement(void* arg) {
         } else {
             printf("[%s] Impossible de récupérer la trajectoire.\n", TAG);
         }
-
         // Attente avant la prochaine mise à jour (ici : 100 ms)
         usleep(100000);
     }

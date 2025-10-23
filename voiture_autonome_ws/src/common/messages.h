@@ -77,8 +77,18 @@ typedef struct {
 */
 typedef struct {
     int nb_points;
-    Point* points;
+    Point_iti* points;
 } Itineraire;
+
+typedef struct {
+    float x; // mm
+    float y; // mm
+    float z; // mm
+    float theta; // degrés
+    int pont;
+    int depacement;
+} Point_iti;
+
 // Le type Point sera surement redéfini avec les metadonnées de la carte
 // Certains champs seront peut-etre ajoutés (ex: position de parking, nécessité de se garer)
 
