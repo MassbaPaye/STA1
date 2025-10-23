@@ -1,7 +1,7 @@
 #ifndef MESSAGES_H
 #define MESSAGES_H
 
-#include <stdbool.h>
+//#include <stdbool.h>
 #include "config.h"
 
 /* Enumération pour le type de message échangé par TCP */
@@ -75,10 +75,6 @@ typedef struct {
     /!\ Mémoire : Planificateur d'itinéraire alloue le tableau avec malloc 
         et Gestion de comportement le libère
 */
-typedef struct {
-    int nb_points;
-    Point_iti* points;
-} Itineraire;
 
 typedef struct {
     float x; // mm
@@ -88,6 +84,11 @@ typedef struct {
     int pont;
     int depacement;
 } Point_iti;
+
+typedef struct {
+    int nb_points;
+    Point_iti* points;
+} Itineraire;
 
 // Le type Point sera surement redéfini avec les metadonnées de la carte
 // Certains champs seront peut-etre ajoutés (ex: position de parking, nécessité de se garer)
@@ -130,12 +131,14 @@ typedef struct {
     Description : Donne les points que la voiture doit suivre, la vitesse, et si la voiture 
         doit se garer.
 */
+
+
 typedef struct {
     int nb_points;
-    Point points[MAX_POINTS_TRAJECTOIRE]; // Tableau des points absolus représentant la trajectoire que la voiture doit suivre
+    Point_iti points[MAX_POINTS_TRAJECTOIRE]; // Tableau des points absolus représentant la trajectoire que la voiture doit suivre
     float vitesse; // [mm/s] vitesse vers laquelle la voiture doit converger
     float vitesse_max; // [mm/s] vitesse maximale autorisée que la voiture ne doit jamais dépasser
-    bool arreter_fin; // Indique si la voiture doit conserver sa vitesse ou si elle doit prévoir de l'arreter  
+    int arreter_fin; // Indique si la voiture doit conserver sa vitesse ou si elle doit prévoir de l'arreter  
 } Trajectoire;
 
 

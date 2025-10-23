@@ -7,49 +7,32 @@
 #include "communication_tcp_ihm.h"
 #include "messages.h"
 #include "controleur_globals.h"
-#include "controleur_routier.h"
 
 #define PORT 5001
 #define CHECK_ERROR(val1, val2, msg) if ((val1)==(val2)) { perror(msg); exit(EXIT_FAILURE); }
 
 int sock = -1;  // Socket unique de dialogue
 
-
-void* thread_periodique(void* arg) {
-    PositionVoiture pos;
-    int b = 0;
-    while (1) {
-        pos.x = b;
-        pos.y = b;
-        pos.z = b;
-        pos.theta = b;
-        pos.vx = b;
-        pos.vy = b;
-        pos.vz = b;
-        sendMessage_ihm(1, MESSAGE_POSITION, &pos, sizeof(PositionVoiture));
-        b += 1;
-        sleep(3); // attend 3 secondes
-    }
-    return NULL;
-}
-
-
 // ==========================================================
-// ===============   ENVOI DE MESSAGES   =====================
+// ===============   ENVOI DE MESSAGES   ==================
 // ==========================================================
 
 static int sendBuffer(const void* buffer, size_t size) {
-    return send(sock, buffer, size, 0);
+    size_t total = 0;
+    while (total < size) {
+        ssize_t n = send(sock, (const char*)buffer + total, size - total, 0);
+        if (n <= 0) return -1;
+        total += n;
+    }
+    return (int)total;
 }
 
 int sendMessage_ihm(int voiture_id, MessageType type, const void* message, size_t size) {
     MessageHeader header = { voiture_id, type, size };
 
-    // Envoi du header
     if (sendBuffer(&header, sizeof(header)) <= 0)
         return -1;
 
-    // Envoi du payload
     if (message && size > 0) {
         if (sendBuffer(message, size) <= 0)
             return -1;
@@ -58,21 +41,18 @@ int sendMessage_ihm(int voiture_id, MessageType type, const void* message, size_
     return 1;
 }
 
-int sendPosition_ihm(int voiture_id, const PositionVoiture* pos) {
-    return sendMessage_ihm(voiture_id, MESSAGE_POSITION, pos, sizeof(PositionVoiture));
-}
-
-int sendFin_ihm(void) {
-    const char* texte = "fin";
-    return sendMessage_ihm(0, MESSAGE_FIN, texte, strlen(texte) + 1);
-}
-
 // ==========================================================
-// ===============   RECEPTION DE MESSAGES   =================
+// ===============   RECEPTION DE MESSAGES   ==============
 // ==========================================================
 
 static int recvBuffer(void* buffer, size_t size) {
-    return recv(sock, buffer, size, 0);
+    size_t total = 0;
+    while (total < size) {
+        ssize_t n = recv(sock, (char*)buffer + total, size - total, 0);
+        if (n <= 0) return -1;
+        total += n;
+    }
+    return (int)total;
 }
 
 int recvMessage_ihm(int* voiture_id, MessageType* type, void* buffer, size_t max_size) {
@@ -95,18 +75,70 @@ int recvMessage_ihm(int* voiture_id, MessageType* type, void* buffer, size_t max
     return (int)header.payload_size;
 }
 
+// ==========================================================
+// ===============   RECEPTION D’UN ITINERAIRE   ==========
+// ==========================================================
+
 int recvItineraire_ihm(int* voiture_id, Itineraire* iti) {
     MessageType type;
-    return recvMessage_ihm(voiture_id, &type, iti, sizeof(Itineraire));
-}
+    
+    // Lecture du header + payload dans un buffer temporaire dynamique
+    char header_buf[sizeof(int)]; // pour lire nb_points
+    if (recvMessage_ihm(voiture_id, &type, header_buf, sizeof(header_buf)) <= 0)
+        return -1;
 
-int recvFin_ihm(int* voiture_id, char* buffer, size_t max_size) {
-    MessageType type;
-    return recvMessage_ihm(voiture_id, &type, buffer, max_size);
+    if (type != MESSAGE_ITINERAIRE)
+        return -1;
+
+    // Lecture de nb_points
+    memcpy(&iti->nb_points, header_buf, sizeof(int));
+    if (iti->nb_points <= 0) {
+        fprintf(stderr, "[Erreur] nb_points invalide: %d\n", iti->nb_points);
+        return -1;
+    }
+
+    // Allocation du buffer pour tous les points
+    size_t points_size = iti->nb_points * sizeof(Point_iti);
+    char* buffer = malloc(points_size);
+    if (!buffer) {
+        perror("malloc points buffer");
+        return -1;
+    }
+
+    // Lecture de tous les points
+    if (recvBuffer(buffer, points_size) <= 0) {
+        free(buffer);
+        return -1;
+    }
+
+    // Allocation dynamique pour iti->points
+    iti->points = malloc(points_size);
+    if (!iti->points) {
+        perror("malloc iti->points");
+        free(buffer);
+        return -1;
+    }
+
+    memcpy(iti->points, buffer, points_size);
+    free(buffer);
+
+    return iti->nb_points;
 }
 
 // ==========================================================
-// ===============   COMMUNICATION PRINCIPALE   ==============
+// ===============   RECEPTION D’UN MESSAGE FIN   =========
+// ==========================================================
+
+int recvFin_ihm(int* voiture_id, char* buffer, size_t max_size) {
+    MessageType type;
+    int n = recvMessage_ihm(voiture_id, &type, buffer, max_size);
+    if (n > 0)
+        buffer[n < (int)max_size ? n : (int)max_size - 1] = '\0';
+    return n;
+}
+
+// ==========================================================
+// ===============   COMMUNICATION PRINCIPALE   ==========
 // ==========================================================
 
 void* communication_ihm(void* arg) {
@@ -126,14 +158,21 @@ void* communication_ihm(void* arg) {
         }
 
         switch (type) {
-            case MESSAGE_ITINERAIRE:
-                if (nbytes >= sizeof(Itineraire)) {
-                    memcpy(&iti, buffer, sizeof(Itineraire));
-                    printf("[IHM] Itinéraire reçu pour voiture %d (%d points)\n",
-                           voiture_id, iti.nb_points);
+            case MESSAGE_ITINERAIRE: {
+                int nb = recvItineraire_ihm(&voiture_id, &iti);
+                if (nb > 0) {
+                    printf("[IHM] Itinéraire reçu pour voiture %d (%d points)\n", voiture_id, iti.nb_points);
+                    for (int i = 0; i < iti.nb_points; i++) {
+                        Point_iti* p = &iti.points[i];
+                        printf("  P%d: x=%.2f y=%.2f z=%.2f theta=%.2f pont=%d dep=%d\n",
+                               i, p->x, p->y, p->z, p->theta, p->pont, p->depacement);
+                    }
+
                     set_voiture_itineraire(voiture_id, &iti);
+                    free(iti.points);
                 }
                 break;
+            }
 
             case MESSAGE_FIN:
                 buffer[sizeof(buffer) - 1] = '\0';
@@ -153,7 +192,7 @@ fin_connexion:
 }
 
 // ==========================================================
-// ===============   INITIALISATION SERVEUR   ================
+// ===============   INITIALISATION SERVEUR   ============
 // ==========================================================
 
 void* initialisation_communication_ihm(void* arg) {
@@ -177,14 +216,11 @@ void* initialisation_communication_ihm(void* arg) {
 
     printf("[Serveur] Connexion établie avec l'IHM.\n");
 
-    
     pthread_t tid;
-    if (pthread_create(&tid, NULL, thread_periodique, NULL) != 0) {
-        perror("Erreur pthread_create lancer communication serie");
-        return -1;
+    if (pthread_create(&tid, NULL, communication_ihm, NULL) != 0) {
+        perror("Erreur pthread_create lancer réception ihm");
+        return NULL;
     }
-    
-    communication_ihm(NULL);
 
     close(se);
     return NULL;

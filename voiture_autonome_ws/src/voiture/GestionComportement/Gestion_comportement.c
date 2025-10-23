@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
@@ -90,7 +91,7 @@ int generate_trajectoire() {
     int write_idx = 0;
 
     if (best_d2 > DIST_INSERT_POSITION) {
-        Point pcur;
+        Point_iti pcur;
         pcur.x = pos.x;
         pcur.y = pos.y;
         pcur.z = pos.z;

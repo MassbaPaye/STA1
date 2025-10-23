@@ -13,21 +13,21 @@ MESSAGE_FIN        = 5
 # === Structures de données
 # ===============================
 
-# Structure Point (4 floats)
-# float x, y, z, theta
-POINT_STRUCT = struct.Struct("<4f")
+# Structure Point_iti (4 floats + 2 ints)
+# float x, y, z, theta; int pont, depacement
+POINT_ITI_STRUCT = struct.Struct("<4f2i")
 
-# Structure Itineraire (int + n points)
+# Structure Itineraire (int + n * Point_iti)
 def serialize_itineraire(itineraire):
     """
     itineraire = {
         "nb_points": int,
-        "points": [(x, y, z, theta), ...]
+        "points": [(x, y, z, theta, pont, depacement), ...]
     }
     """
     data = struct.pack("<i", itineraire["nb_points"])
     for p in itineraire["points"]:
-        data += POINT_STRUCT.pack(*p)
+        data += POINT_ITI_STRUCT.pack(*p)
     return data
 
 # Structure PositionVoiture (7 floats)
@@ -83,9 +83,9 @@ def main():
         itineraire = {
             "nb_points": 3,
             "points": [
-                (0.0, 0.0, 0.0, 0.0),
-                (1000.0, 0.0, 0.0, 0.0),
-                (1000.0, 1000.0, 0.0, 90.0),
+                (0.0, 0.0, 0.0, 0.0, 0, 0),
+                (1000.0, 0.0, 0.0, 0.0, 1, 0),
+                (1000.0, 1000.0, 0.0, 90.0, 0, 1),
             ]
         }
         payload = serialize_itineraire(itineraire)

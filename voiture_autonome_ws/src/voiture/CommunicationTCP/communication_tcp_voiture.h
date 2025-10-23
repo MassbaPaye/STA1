@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <pthread.h>   // pour pthread_mutex_t et pthread_t
+#include <stdbool.h>
 #include "config.h"
 #include "messages.h"
 

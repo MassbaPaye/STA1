@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include "logger.h"
 #include "communication_tcp_controleur.h"
+#include "communication_tcp_ihm.h"
+#include "messages.h"
 
 #define TAG "contorleur_globals"
 
@@ -69,6 +71,7 @@ int set_voiture_position(int id, const PositionVoiture* pos) {
     pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].position = *pos;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].position_last_update);
+    sendPosition_ihm(id, &pos);
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }
@@ -96,7 +99,7 @@ int set_voiture_itineraire(int id, const Itineraire* itin) {
     pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].itineraire = *itin;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].itineraire_last_update);
-    sendMessage(id, Itineraire, itin);
+    sendMessage(id, MESSAGE_ITINERAIRE, &itin);
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }
