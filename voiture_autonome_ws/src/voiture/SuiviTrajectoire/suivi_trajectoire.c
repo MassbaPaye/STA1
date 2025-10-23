@@ -8,43 +8,40 @@
 #include "messages.h"
 
 
-
 #define DEG2RAD(x) ((x) * PI / 180.0f)
 #define RAD2DEG(x) ((x) * 180.0f / PI)
 
-// ========== Fonctions utilitaires internes ==========
+float theta_e;
+float d;
 
-// Calcul du polynôme local cubique à partir de 3 points
-static void compute_local_polynomial(Point *p1, Point *p2, Point *p3, float coeffs[4]) {
-    float x1 = p1->x, y1 = p1->y;
-    float x2 = p2->x, y2 = p2->y;
-    float x3 = p3->x, y3 = p3->y;
-    float t2 = DEG2RAD(p2->theta);
-    float dy_dx2 = tanf(t2);
 
-    float A[4][4] = {
-        {1, x1, x1*x1, x1*x1*x1},
-        {1, x2, x2*x2, x2*x2*x2},
-        {1, x3, x3*x3, x3*x3*x3},
-        {0, 1, 2*x2, 3*x2*x2}
-    };
-    float b[4] = {y1, y2, y3, dy_dx2};
-
-    // Résolution gaussienne (4x4)
-    for (int i = 0; i < 4; ++i) {
-        float pivot = A[i][i];
-        if (fabs(pivot) < 1e-6f) pivot = 1e-6f;
-        for (int j = i; j < 4; ++j) A[i][j] /= pivot;
-        b[i] /= pivot;
-        for (int k = 0; k < 4; ++k) {
-            if (k == i) continue;
-            float f = A[k][i];
-            for (int j = i; j < 4; ++j) A[k][j] -= f * A[i][j];
-            b[k] -= f * b[i];
-        }
-    }
-    for (int i = 0; i < 4; ++i) coeffs[i] = b[i];
+void compute_frenet_coordinates_using_closest_point_only(PositionVoiture voiture, Point p) {
+    d = - (voiture.x - p.x) * cos(p.theta) + (voiture.y - p.y) * sin(p.theta);
+    theta_e = voiture.theta - p.theta; 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Calcul du projeté orthogonal par itération locale
 static void compute_projection(float x, float y, const float coeffs[4], float *xs, float *ys) {

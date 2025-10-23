@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include "messages.h"
 #include "communication_tcp_controleur.h"
-#include "TCP_controleur.h"
+#include "TCP_controleur_voiture.h"
 
 #define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }

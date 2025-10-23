@@ -5,6 +5,7 @@
 #include "communication_tcp_controleur.h"
 #include "controleur_globals.h"
 #include "queue.h"
+#include "communication_tcp_ihm.h"
 
 #define TAG "main"
 
@@ -22,6 +23,14 @@ int main() {
     
     // Création du thread
     if (pthread_create(&thread_1, NULL, initialisation_communication_controleur, NULL) != 0) {
+        perror("Erreur pthread_create");
+        return EXIT_FAILURE;
+    }
+
+    pthread_t thread_2;
+    
+    // Création du thread
+    if (pthread_create(&thread_2, NULL, initialisation_communication_ihm, NULL) != 0) {
         perror("Erreur pthread_create");
         return EXIT_FAILURE;
     }

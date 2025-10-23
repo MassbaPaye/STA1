@@ -1,7 +1,6 @@
 #ifndef MESSAGES_H
 #define MESSAGES_H
 
-#include <stdbool.h>
 #include "config.h"
 
 /* Enumération pour le type de message échangé par TCP */
@@ -79,6 +78,14 @@ typedef struct {
     int nb_points;
     Point* points;
 } Itineraire;
+
+typedef struct {
+    float x; // mm
+    float y; // mm
+    float z; // mm
+    float theta; // degrés
+} Point;
+
 // Le type Point sera surement redéfini avec les metadonnées de la carte
 // Certains champs seront peut-etre ajoutés (ex: position de parking, nécessité de se garer)
 

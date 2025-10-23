@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "messages.h"
 
 #define PI 3.141592653589793
 
@@ -19,5 +20,7 @@ void gestion_arguments(int argc, char *argv[]);
 
 double timespec_diff_s(struct timespec t1, struct timespec t2);
 void my_sleep(double t_s);
+
+float distance_from_car(PositionVoiture pv, Point p);
 
 #endif // UTILS_H

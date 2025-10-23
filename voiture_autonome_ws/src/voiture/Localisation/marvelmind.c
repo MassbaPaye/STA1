@@ -146,18 +146,30 @@ uint32_t _GetBaudCode (uint32_t baudrate, bool verbose)
         return B115200;
     case 230400:
         return B230400;
+#ifdef B460800
     case 460800:
         return B460800;
+#endif
+#ifdef B500000
     case 500000:
         return B500000;
+#endif
+#ifdef B576000
     case 576000:
         return B576000;
+#endif
+#ifdef B921600
     case 921600:
         return B921600;
+#endif
+#ifdef B1000000
     case 1000000:
         return B1000000;
+#endif
+#ifdef B1152000
     case 1152000:
         return B1152000;
+#endif
     default:
         if (verbose)
             printf ("Warning: unsupported baudrate %u. Using 9600.\n",

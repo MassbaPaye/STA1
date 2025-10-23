@@ -81,11 +81,15 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+#if USE_SERIAL
     // Lancement de la communication Série avec le MegaPi
     if (pthread_create(&thread_communication_serie, NULL, lancer_communication_serie, NULL) != 0) {
         perror("Erreur pthread_create lancer communication serie");
         return EXIT_FAILURE;
     }
+#else
+    INFO(TAG, "Communication série désactivée (USE_SERIAL=0)");
+#endif
 
     // Lancement du thread UDP
     if (pthread_create(&thread_communication_udp, NULL, initialisation_communication_camera, NULL) != 0) {
@@ -130,14 +134,15 @@ int main(int argc, char *argv[]) {
     */
    
     // Attendre la fin du thread (ici il tourne en boucle infinie)
-    stop_comportement();
     pthread_join(thread_communication_udp, NULL);
-
+    
     getchar();
+    stop_comportement();
+#if USE_SERIAL
     stop_communication_serie();
+#endif
     stop_localisation();
     deconnecter_controleur();
     return 0;
 }
-
 
