@@ -109,10 +109,11 @@ int generate_trajectoire() {
             if(i == point_arret[j]){
                 switch (Obj_detecte.obstacle[j].type){
                     case OBSTACLE_VOITURE:
-                        if(iti.points[i].depacement == 0){
+                        if(iti.points[i].dep == 0){
                             i = MAX_POINTS_TRAJECTOIRE;
+                            traj.arreter_fin = true;
                         }else{
-
+                            if(Obj_detecte.obstacle[j].pointd)
                         }
                         break;
                     case PANNEAU_LIMITATION_30:
@@ -121,9 +122,11 @@ int generate_trajectoire() {
                         break;
                     case PANNEAU_BARRIERE:
                         i = MAX_POINTS_TRAJECTOIRE;
+                        traj.arreter_fin = true;
                         break;
                     case PANNEAU_CEDER_PASSAGE:
                         i = MAX_POINTS_TRAJECTOIRE;
+                        traj.arreter_fin = true;
                         break;
                     case PANNEAU_FIN_30:
                         traj.vitesse_max = (float)MAX_VITESSE;
@@ -131,15 +134,19 @@ int generate_trajectoire() {
                     case PONT:
                         do{
                             i = MAX_POINTS_TRAJECTOIRE;
-                            Demande d = {0};
-                            d.type = 1;
+                            traj.arreter_fin = true;
+                            Demande d;
+                            d.type = RESERVATION_STRUCTURE;
                             set_demande(&d);
                             usleep(100000);
                             if(get_consigne(&cons) != 0){
                                 DBG(TAG, "Failure dans l'obtention de la consigne"); 
                                 return -1;
                             }
-                        }while(cons.autorisation == 0);  
+                            if(pos.vx != 0 || pos.vy != 0){
+                                break;
+                            }
+                        }while(cons.autorisation == CONSIGNE_ATTENTE);
                         break;
                     default:
 
@@ -147,9 +154,12 @@ int generate_trajectoire() {
                 }
             }
         }
+        if(iti.points[i-1].pont == 1 && iti.points[i].pont == 0){
+            d.type = LIBERATION_STRUCTURE;
+        }
     }
     
-
+ 
     if (traj.nb_points == 0) {
         traj.points[0] = iti.points[best_idx];
         traj.nb_points = 1;
