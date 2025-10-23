@@ -647,31 +647,4 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     
     # <--- FIN DES MODIFICATIONS
 
-if __name__ == "__main__":
-    
-    position_voiture = {"theta":0, "x":807.0, "y":1595.0, "z":0}
-    
-    # Récupérer la liste de listes retournée <--- MODIFIÉ
-    itineraire_liste_de_listes = calcul_et_interpolation_itin(
-        NODES_FILE, 
-        ARCS_FILE, 
-        position_voiture,
-        SPARSE_OUTPUT_FILE,
-        DENSE_OUTPUT_FILE
-    )
-
-    print(itineraire_liste_de_listes)
-    
-    # Afficher un échantillon de la liste de listes <--- AJOUTÉ
-    if itineraire_liste_de_listes:
-        print("\n--- Début de la sortie (Liste de Listes) ---")
-        # Afficher l'en-tête et les 5 premiers points
-        print("En-tête:", itineraire_liste_de_listes[0]) 
-        for row in itineraire_liste_de_listes[1:6]:
-            print(row)
-        
-        if len(itineraire_liste_de_listes) > 6:
-             print(f"... et {len(itineraire_liste_de_listes) - 6} autres points.")
-        print("--- Fin de la sortie ---")
-    else:
-        print("Aucun itinéraire n'a été généré.")
+#
