@@ -91,7 +91,7 @@ int generate_trajectoire() {
     int write_idx = 0;
 
     if (best_d2 > DIST_INSERT_POSITION) {
-        Point_iti pcur;
+        Point pcur;
         pcur.x = pos.x;
         pcur.y = pos.y;
         pcur.z = pos.z;

@@ -98,7 +98,7 @@ int recvItineraire_ihm(int* voiture_id, Itineraire* iti) {
     }
 
     // Allocation du buffer pour tous les points
-    size_t points_size = iti->nb_points * sizeof(Point_iti);
+    size_t points_size = iti->nb_points * sizeof(Point);
     char* buffer = malloc(points_size);
     if (!buffer) {
         perror("malloc points buffer");
@@ -163,7 +163,7 @@ void* communication_ihm(void* arg) {
                 if (nb > 0) {
                     printf("[IHM] Itinéraire reçu pour voiture %d (%d points)\n", voiture_id, iti.nb_points);
                     for (int i = 0; i < iti.nb_points; i++) {
-                        Point_iti* p = &iti.points[i];
+                        Point* p = &iti.points[i];
                         printf("  P%d: x=%.2f y=%.2f z=%.2f theta=%.2f pont=%d dep=%d\n",
                                i, p->x, p->y, p->z, p->theta, p->pont, p->depacement);
                     }

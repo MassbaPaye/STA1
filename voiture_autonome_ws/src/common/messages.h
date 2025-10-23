@@ -51,6 +51,8 @@ typedef struct {
     float y; // mm
     float z; // mm
     float theta; // degrés
+    int pont;
+    int depacement;
 } Point;
 
 
@@ -77,17 +79,8 @@ typedef struct {
 */
 
 typedef struct {
-    float x; // mm
-    float y; // mm
-    float z; // mm
-    float theta; // degrés
-    int pont;
-    int depacement;
-} Point_iti;
-
-typedef struct {
     int nb_points;
-    Point_iti* points;
+    Point* points;
 } Itineraire;
 
 // Le type Point sera surement redéfini avec les metadonnées de la carte
@@ -135,7 +128,7 @@ typedef struct {
 
 typedef struct {
     int nb_points;
-    Point_iti points[MAX_POINTS_TRAJECTOIRE]; // Tableau des points absolus représentant la trajectoire que la voiture doit suivre
+    Point points[MAX_POINTS_TRAJECTOIRE]; // Tableau des points absolus représentant la trajectoire que la voiture doit suivre
     float vitesse; // [mm/s] vitesse vers laquelle la voiture doit converger
     float vitesse_max; // [mm/s] vitesse maximale autorisée que la voiture ne doit jamais dépasser
     int arreter_fin; // Indique si la voiture doit conserver sa vitesse ou si elle doit prévoir de l'arreter  
