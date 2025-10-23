@@ -14,6 +14,26 @@
 
 int sock = -1;  // Socket unique de dialogue
 
+
+void* thread_periodique(void* arg) {
+    PositionVoiture pos;
+    int b = 0;
+    while (1) {
+        pos.x = b;
+        pos.y = b;
+        pos.z = b;
+        pos.theta = b;
+        pos.vx = b;
+        pos.vy = b;
+        pos.vz = b;
+        sendMessage_ihm(1, MESSAGE_POSITION, &pos, sizeof(PositionVoiture));
+        b += 1;
+        sleep(3); // attend 3 secondes
+    }
+    return NULL;
+}
+
+
 // ==========================================================
 // ===============   ENVOI DE MESSAGES   =====================
 // ==========================================================
@@ -95,7 +115,6 @@ void* communication_ihm(void* arg) {
     MessageType type;
     char buffer[2048];
     Itineraire iti;
-    PositionVoiture pos;
 
     printf("[Serveur] Communication avec l'IHM démarrée.\n");
 
@@ -113,21 +132,6 @@ void* communication_ihm(void* arg) {
                     printf("[IHM] Itinéraire reçu pour voiture %d (%d points)\n",
                            voiture_id, iti.nb_points);
                     set_voiture_itineraire(voiture_id, &iti);
-                    Itineraire iti2;
-                    get_voiture_itineraire(voiture_id, &iti2);
-                    printf("point 1 : \n
-                            point 2 : \n
-                            point 3 : \n", iti2->Points.x, iti2->Points.x)
-
-                    // Répondre avec une position exemple
-                    pos.x = 1000.0f;
-                    pos.y = 2000.0f;
-                    pos.z = 0.0f;
-                    pos.theta = 0.0f;
-                    pos.vx = 0.0f;
-                    pos.vy = 0.0f;
-                    pos.vz = 0.0f;
-                    sendPosition_ihm(voiture_id, &pos);
                 }
                 break;
 
@@ -173,6 +177,13 @@ void* initialisation_communication_ihm(void* arg) {
 
     printf("[Serveur] Connexion établie avec l'IHM.\n");
 
+    
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, thread_periodique, NULL) != 0) {
+        perror("Erreur pthread_create lancer communication serie");
+        return -1;
+    }
+    
     communication_ihm(NULL);
 
     close(se);
