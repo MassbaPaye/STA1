@@ -178,7 +178,7 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
         return []
     p1 = sparse_path[0]
     # Stocke (x, y, pont_flag, depass_flag)
-    dense_points_xy.append((p1['x'], p1['y'], 0, 0)) # <-- MODIFIÉ
+    dense_points_xy.append((p1['x'], p1['y'], 0, 0))
 
     for i in range(len(sparse_path) - 1):
         p1 = sparse_path[i]
@@ -188,10 +188,10 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
         arc_info = arc_lookup.get((u, v)) 
         
         pont_flag = 0
-        depass_flag = 0 # <-- AJOUTÉ
+        depass_flag = 0 
         if arc_info:
             pont_flag = arc_info.get('pont', 0)
-            depass_flag = arc_info.get('depass', 0) # <-- AJOUTÉ
+            depass_flag = arc_info.get('depass', 0) 
 
         p1_xy = np.array([p1['x'], p1['y']])
         p2_xy = np.array([p2['x'], p2['y']])
@@ -215,7 +215,7 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
             xs = np.linspace(p1['x'], p2['x'], num_steps)
             ys = np.linspace(p1['y'], p2['y'], num_steps)
             for j in range(1, num_steps):
-                dense_points_xy.append((xs[j], ys[j], pont_flag, depass_flag)) # <-- MODIFIÉ
+                dense_points_xy.append((xs[j], ys[j], pont_flag, depass_flag)) 
         else:
             cx, cy = center_tuple
             abs_radius = abs(radius)
@@ -232,12 +232,12 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
                 a = angles[j]
                 x = cx + abs_radius * math.cos(a)
                 y = cy + abs_radius * math.sin(a)
-                dense_points_xy.append((x, y, pont_flag, depass_flag)) # <-- MODIFIÉ
+                dense_points_xy.append((x, y, pont_flag, depass_flag)) 
 
     final_trajectory = []
     for k in range(len(dense_points_xy)):
         current_p = dense_points_xy[k]
-        x, y, pont_flag, depass_flag = current_p[0], current_p[1], current_p[2], current_p[3] # <-- MODIFIÉ
+        x, y, pont_flag, depass_flag = current_p[0], current_p[1], current_p[2], current_p[3] 
         
         if k < len(dense_points_xy) - 1:
             next_p = dense_points_xy[k+1]
@@ -254,7 +254,7 @@ def interpolate_path(sparse_path, arc_lookup, step_size):
             'z': 0,
             'theta': round(theta, 4),
             'pont': pont_flag,
-            'depass': depass_flag # <-- AJOUTÉ
+            'depass': depass_flag 
         })
     return final_trajectory
 
@@ -264,7 +264,7 @@ def save_dense_path(file_path, trajectory):
         print("Avertissement : Trajectoire vide, aucun fichier de sortie généré.")
         return
     with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
-        fieldnames = ["id", "x", "y", "z", "theta", "pont", "depass"] # <-- MODIFIÉ
+        fieldnames = ["id", "x", "y", "z", "theta", "pont", "depass"] 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(trajectory)
@@ -303,14 +303,14 @@ def visualize_final_path(dense_trajectory, nodes_file, arcs_file):
     pont_xs = [p['x'] for p in dense_trajectory if p['pont'] == 1]
     pont_ys = [p['y'] for p in dense_trajectory if p['pont'] == 1]
     
-    depass_xs = [p['x'] for p in dense_trajectory if p['depass'] == 1] # <-- AJOUTÉ
-    depass_ys = [p['y'] for p in dense_trajectory if p['depass'] == 1] # <-- AJOUTÉ
+    depass_xs = [p['x'] for p in dense_trajectory if p['depass'] == 1] 
+    depass_ys = [p['y'] for p in dense_trajectory if p['depass'] == 1] 
 
     if pont_xs:
         ax.scatter(pont_xs, pont_ys, color='gray', s=15, zorder=9, label='Pont')
         
-    if depass_xs: # <-- AJOUTÉ
-        ax.scatter(depass_xs, depass_ys, color='orange', s=15, zorder=9, label='Dépassement') # <-- AJOUTÉ
+    if depass_xs: 
+        ax.scatter(depass_xs, depass_ys, color='orange', s=15, zorder=9, label='Dépassement') 
 
     ax.plot(dense_xs, dense_ys, color='magenta', linewidth=2.5, zorder=10, label='Itinéraire Dense')
     
@@ -330,28 +330,23 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     la sélection interactive, et l'interpolation.
     """
     
-    # --- DÉFINITION DES ARCS DU PONT (Mis à jour) ---
+    # DÉFINITION DES ARCS DU PONT ET DES ZONES DE DEPASSEMENT
     BRIDGE_ARCS = {
         (23, 24), (24, 23), (23,21), (21,23), (21,22), (37,24), (24,25), (15, 16), (17,14)
     }
 
     DEPASS = {
-        (20,19), (18,21), (29,30), (30,31), (31,32), (32,10), (11,33), (33,34), (34,35), (35,55), (55,36) # <-- MODIFIÉ (virgules)
+        (20,19), (18,21), (29,30), (30,31), (31,32), (32,10), (11,33), (33,34), (34,35), (35,55), (55,36)
     }
     
-    try:
-        data = pd.read_csv(fichier_csv)
-        arcs_data = pd.read_csv(fichier_arcs)
-        nodes = load_nodes(fichier_csv)
-        arcs = load_arcs(fichier_arcs)
-    except FileNotFoundError as e:
-        print(f"Erreur : Fichier non trouvé. {e}")
-        return None
+    data = pd.read_csv(fichier_csv)
+    arcs_data = pd.read_csv(fichier_arcs)
+    nodes = load_nodes(fichier_csv)
+    arcs = load_arcs(fichier_arcs)
         
     points = data[['x', 'y']].to_numpy()
 
-    # === 1. Tracé interactif et sélection ===
-    
+    # 1 : Tracé interactif et sélection 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_aspect("equal", adjustable="datalim")
     ax.invert_yaxis()
@@ -361,18 +356,15 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         p1, p2 = nodes[u], nodes[v]
         is_bridge = (u, v) in BRIDGE_ARCS
         is_depass = (u, v) in DEPASS
-        
-        color = "cyan" # Couleur par défaut (ligne)
+        color = "cyan"
         if is_bridge:
             color = "gray"
         elif is_depass:
-            color = "orange" # <-- AJOUTÉ
+            color = "orange" 
         elif not math.isinf(r):
-            color = "green" # Couleur arc
-            
-        alpha = 0.8 if is_bridge or is_depass else 1.0 # <-- MODIFIÉ
+            color = "green"  
+        alpha = 0.8 if is_bridge or is_depass else 1.0 
         draw_arc(ax, p1, p2, r, color=color, linewidth=2, alpha=alpha)
-
 
     xs, ys = zip(*[nodes[i] for i in nodes])
     ax.scatter(xs, ys, s=30, color="blue", zorder=5)
@@ -380,7 +372,7 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     voiture_xy = np.array([localisation_voiture["x"] , localisation_voiture["y"] ])
     plt.scatter(voiture_xy[0], voiture_xy[1], color='red', s=100, label='Position voiture (Départ)', zorder=6)
 
-    # --- Projection Départ ---
+    # Projection du point de Départ sur l'arc le plus proche
     min_dist_start = float('inf')
     best_arc_start = None
     proj_point_start = None
@@ -405,7 +397,7 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         plt.close(fig)
         return None
     
-    # --- Sélection interactive de la destination ---
+    # Sélection interactive de la destination
     print("Veuillez cliquer sur le graphique pour choisir la destination...")
     ax.set_title("VEUILLEZ CLIQUER POUR CHOISIR LA DESTINATION")
     ax.legend()
@@ -451,11 +443,10 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     ax.legend()
     plt.draw()
     print("Projections calculées. Fermeture de la fenêtre interactive...")
-    plt.pause(1.0) # Petite pause pour voir
+    plt.pause(1.0)
     plt.close(fig)
 
-    # === 2. Création et modification du graphe ===
-
+    # 2 : Création et modification du graphe 
     G = nx.DiGraph()
     for _, row in data.iterrows():
         node_id = int(row['id'])
@@ -471,7 +462,7 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         pont = 1 if (u, v) in BRIDGE_ARCS else 0
         deppass = 1 if (u, v) in DEPASS else 0
             
-        G.add_edge(u, v, weight=length, radius=radius, pont=pont, depass=deppass) # <-- MODIFIÉ
+        G.add_edge(u, v, weight=length, radius=radius, pont=pont, depass=deppass) 
 
     node_id_list = data['id'].to_numpy(dtype=int)
     
@@ -485,29 +476,27 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     G.add_node(idx_proj_start, pos=tuple(proj_point_start))
     G.add_node(idx_proj_end, pos=tuple(proj_point_end))
     
-    G.add_edge(idx_start, idx_proj_start, weight=min_dist_start, radius=float('inf'), pont=0, depass=0) # <-- MODIFIÉ
+    G.add_edge(idx_start, idx_proj_start, weight=min_dist_start, radius=float('inf'), pont=0, depass=0) 
     
     u_s, v_s, r_s, _, _, _ = best_arc_start
     u_e, v_e, r_e, _, _, _ = best_arc_end
     
-    # --- Récupération des attributs (y compris depass) ---
+    # Récupération des attributs
     attrs_s = G.edges[u_s, v_s] if G.has_edge(u_s, v_s) else {
         'radius': r_s, 
         'pont': 1 if (u_s, v_s) in BRIDGE_ARCS else 0,
-        'depass': 1 if (u_s, v_s) in DEPASS else 0 # <-- AJOUTÉ
+        'depass': 1 if (u_s, v_s) in DEPASS else 0 
     }
     attrs_e = G.edges[u_e, v_e] if G.has_edge(u_e, v_e) else {
         'radius': r_e, 
         'pont': 1 if (u_e, v_e) in BRIDGE_ARCS else 0,
-        'depass': 1 if (u_e, v_e) in DEPASS else 0 # <-- AJOUTÉ
+        'depass': 1 if (u_e, v_e) in DEPASS else 0 
     }
     
     pont_s = attrs_s.get('pont', 0)
-    depass_s = attrs_s.get('depass', 0) # <-- AJOUTÉ
+    depass_s = attrs_s.get('depass', 0) 
     pont_e = attrs_e.get('pont', 0)
-    depass_e = attrs_e.get('depass', 0) # <-- AJOUTÉ
-    # --- Fin récupération attributs ---
-
+    depass_e = attrs_e.get('depass', 0)
 
     if (u_s, v_s) == (u_e, v_e):
         print("Cas: Départ et arrivée sur le même arc.")
@@ -524,16 +513,16 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
             len_s_e = get_arc_segment_length(proj_point_start, proj_point_end, radius)
             len_e_v = get_arc_segment_length(proj_point_end, p2, radius)
             
-            G.add_edge(u, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
-            G.add_edge(idx_proj_start, idx_proj_end, weight=len_s_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
-            G.add_edge(idx_proj_end, v, weight=len_e_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(u, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
+            G.add_edge(idx_proj_start, idx_proj_end, weight=len_s_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
+            G.add_edge(idx_proj_end, v, weight=len_e_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
         else:
             len_e_s = get_arc_segment_length(proj_point_end, proj_point_start, radius)
             len_s_v = get_arc_segment_length(proj_point_start, p2, radius)
 
-            G.add_edge(u, idx_proj_end, weight=len_u_proj_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
-            G.add_edge(idx_proj_end, idx_proj_start, weight=len_e_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
-            G.add_edge(idx_proj_start, v, weight=len_s_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(u, idx_proj_end, weight=len_u_proj_e, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
+            G.add_edge(idx_proj_end, idx_proj_start, weight=len_e_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
+            G.add_edge(idx_proj_start, v, weight=len_s_v, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
     else:
         print("Cas: Départ et arrivée sur des arcs différents.")
         
@@ -543,8 +532,8 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         
         if G.has_edge(u_s, v_s):
             G.remove_edge(u_s, v_s)
-            G.add_edge(u_s, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
-            G.add_edge(idx_proj_start, v_s, weight=len_proj_v_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) # <-- MODIFIÉ
+            G.add_edge(u_s, idx_proj_start, weight=len_u_proj_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
+            G.add_edge(idx_proj_start, v_s, weight=len_proj_v_s, radius=attrs_s['radius'], pont=pont_s, depass=depass_s) 
         
         p1_e, p2_e = nodes[u_e], nodes[v_e]
         len_u_proj_e = get_arc_segment_length(p1_e, proj_point_end, r_e)
@@ -552,12 +541,12 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
 
         if G.has_edge(u_e, v_e):
             G.remove_edge(u_e, v_e)
-            G.add_edge(u_e, idx_proj_end, weight=len_u_proj_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) # <-- MODIFIÉ
-            G.add_edge(idx_proj_end, v_e, weight=len_proj_v_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) # <-- MODIFIÉ
+            G.add_edge(u_e, idx_proj_end, weight=len_u_proj_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) 
+            G.add_edge(idx_proj_end, v_e, weight=len_proj_v_e, radius=attrs_e['radius'], pont=pont_e, depass=depass_e) 
     
     indices_selected = [idx_start, idx_proj_end]
     
-    # === 3. Calcul du chemin "Sparse" ===
+    # 3 : Calcul du chemin
     
     start, end = indices_selected
     try:
@@ -611,7 +600,7 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         arc_lookup_from_graph[(u, v)] = {
             'radius': data.get('radius', float('inf')),
             'pont': data.get('pont', 0),
-            'depass': data.get('depass', 0) # <-- AJOUTÉ
+            'depass': data.get('depass', 0) 
         }
     
     print(f"Interpolation de la trajectoire (pas de {STEP_SIZE_MM} mm)...")
@@ -623,14 +612,66 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     
     visualize_final_path(dense_trajectory, fichier_csv, fichier_arcs)
     
-    return dense_trajectory
+    # === 6. Conversion en liste de listes (DEMANDE UTILISATEUR) === <--- MODIFIÉ
+    
+    if not dense_trajectory:
+        print("Avertissement : Trajectoire dense vide, retour de None.")
+        return None
+        
+    # Définir l'ordre des colonnes, identique au CSV
+    fieldnames = ["id", "x", "y", "z", "theta", "pont", "depass"]
+    
+    # Créer la liste de listes
+    list_of_lists_output = []
+    
+    # Ajouter l'en-tête
+    list_of_lists_output.append(fieldnames)
+    
+    # Ajouter les données
+    for point in dense_trajectory:
+        row = [
+            point.get('id', 0), 
+            point.get('x', 0.0), 
+            point.get('y', 0.0), 
+            point.get('z', 0), 
+            point.get('theta', 0.0), 
+            point.get('pont', 0), 
+            point.get('depass', 0)
+        ]
+        list_of_lists_output.append(row)
+        
+    print(f"✅ Trajectoire convertie en liste de listes (contient {len(list_of_lists_output)} lignes, en-tête inclus).")
+    
+    # Retourner la nouvelle structure
+    return list_of_lists_output
+    
+    # <--- FIN DES MODIFICATIONS
 
 if __name__ == "__main__":
     
     position_voiture = {"theta":0, "x":807.0, "y":1595.0, "z":0}
     
-    calcul_et_interpolation_itin(NODES_FILE, 
-                                 ARCS_FILE, 
-                                 position_voiture,
-                                 SPARSE_OUTPUT_FILE,
-                                 DENSE_OUTPUT_FILE)
+    # Récupérer la liste de listes retournée <--- MODIFIÉ
+    itineraire_liste_de_listes = calcul_et_interpolation_itin(
+        NODES_FILE, 
+        ARCS_FILE, 
+        position_voiture,
+        SPARSE_OUTPUT_FILE,
+        DENSE_OUTPUT_FILE
+    )
+
+    print(itineraire_liste_de_listes)
+    
+    # Afficher un échantillon de la liste de listes <--- AJOUTÉ
+    if itineraire_liste_de_listes:
+        print("\n--- Début de la sortie (Liste de Listes) ---")
+        # Afficher l'en-tête et les 5 premiers points
+        print("En-tête:", itineraire_liste_de_listes[0]) 
+        for row in itineraire_liste_de_listes[1:6]:
+            print(row)
+        
+        if len(itineraire_liste_de_listes) > 6:
+             print(f"... et {len(itineraire_liste_de_listes) - 6} autres points.")
+        print("--- Fin de la sortie ---")
+    else:
+        print("Aucun itinéraire n'a été généré.")
