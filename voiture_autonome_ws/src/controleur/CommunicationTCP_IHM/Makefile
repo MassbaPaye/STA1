@@ -1,5 +1,5 @@
 # ==============================
-# Makefile module : CommunicationTCP
+# Makefile module : CommunicationTCP IHM
 # ==============================
 
 # BUILD_DIR est le chemin absolue vers le dossier de build, typiquement ws/build/controleur/ModuleExemple/
@@ -10,7 +10,7 @@ CC := gcc
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)     # Possibilité d'ajouter des flags (-Wall -O2 -lm -pthread par défaut)
-SRC := TCP_controleur.c communication_tcp_controleur.c    # A modifier lorsqu'on ajoute des fichiers de code
+SRC := communication_tcp_ihm.c    # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)
@@ -21,4 +21,4 @@ all: $(OBJS)
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@) 
 	$(CC) $(ARGS) -c $< -o $@ 
-	@echo "✅ Module CommunicationTCP : $@ compilé" 
+	@echo "✅ Module CommunicationTCP_IHM : $@ compilé" 
