@@ -35,6 +35,7 @@ int generate_trajectoire() {
     Itineraire iti;
     DonneesDetection Obj_detecte;
     Consigne cons;
+    Demande d;
 
     if (get_position(&pos) != 0) {
         DBG(TAG, "Failure dans l'obtention de le position");
@@ -59,7 +60,8 @@ int generate_trajectoire() {
     int best_idx = 0;
     long long best_d2 = dist2_point_pos(&iti.points[0], &pos);
     float v_current = compute_vitesse_convergence(&pos);
-    int point_arret[MAX_OBSTACLES_SIMULTANES];
+    int point_arret[MAX_OBSTACLES_SIMULTANES]={0};
+    
     int check_obstacle[MAX_OBSTACLES_SIMULTANES] = {0}; 
     for (int i = 1; i < iti.nb_points; ++i) {
         long long d2 = dist2_point_pos(&iti.points[i], &pos);
@@ -110,11 +112,11 @@ int generate_trajectoire() {
             if(i == point_arret[j]){
                 switch (Obj_detecte.obstacle[j].type){
                     case OBSTACLE_VOITURE:
-                        if(iti.points[i].dep == 0){
+                        if(iti.points[i].depacement == 0){
                             i = MAX_POINTS_TRAJECTOIRE;
                             traj.arreter_fin = true;
                         }else{
-                            if(Obj_detecte.obstacle[j].pointd)
+                            //if(Obj_detecte.obstacle[j].pointd){}
                         }
                         break;
                     case PANNEAU_LIMITATION_30:
@@ -136,7 +138,6 @@ int generate_trajectoire() {
                         do{
                             i = MAX_POINTS_TRAJECTOIRE;
                             traj.arreter_fin = true;
-                            Demande d;
                             d.type = RESERVATION_STRUCTURE;
                             set_demande(&d);
                             usleep(100000);
@@ -198,9 +199,9 @@ void* lancer_comportement(void* arg) {
         if (gen_ret != 0) {
             printf("[%s] Erreur lors de la génération de la trajectoire (code=%d)\n", TAG, gen_ret);
         } else {
-            printf("[%s] Trajectoire générée avec succès.\n", TAG);
+            //printf("[%s] Trajectoire générée avec succès.\n", TAG);
         }
-
+/*
         Trajectoire traj;
         if (get_trajectoire(&traj) == 0) {
             int nb_afficher = traj.nb_points < 5 ? traj.nb_points : 5;
@@ -215,6 +216,7 @@ void* lancer_comportement(void* arg) {
         } else {
             printf("[%s] Impossible de récupérer la trajectoire.\n", TAG);
         }
+*/
         // Attente avant la prochaine mise à jour (ici : 100 ms)
         usleep(100000);
     }

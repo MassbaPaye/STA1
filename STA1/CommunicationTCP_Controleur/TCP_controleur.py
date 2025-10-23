@@ -90,6 +90,19 @@ def main():
         }
         payload = serialize_itineraire(itineraire)
         send_message(sock, voiture_id=1, msg_type=MESSAGE_ITINERAIRE, payload_bytes=payload)
+
+        # ---- Envoi d’un itinéraire pour voiture 1 ----
+        itineraire2 = {
+            "nb_points": 3,
+            "points": [
+                (1.0, 1.0, 1.0, 1.0, 1, 1),
+                (2000.0, 0.0, 0.0, 0.0, 1, 0),
+                (3000.0, 1000.0, 0.0, 90.0, 0, 1),
+            ]
+        }
+        payload2 = serialize_itineraire(itineraire2)
+        send_message(sock, voiture_id=2, msg_type=MESSAGE_ITINERAIRE, payload_bytes=payload2)
+
         print("[IHM] Itinéraire envoyé pour voiture 1 🚗")
 
         # ---- Attente de position envoyée par le serveur ----

@@ -71,7 +71,7 @@ int set_voiture_position(int id, const PositionVoiture* pos) {
     pthread_mutex_lock(&voitures[id].mutex);
     voitures[id].position = *pos;
     clock_gettime(CLOCK_MONOTONIC, &voitures[id].position_last_update);
-    sendPosition_ihm(id, &pos);
+    sendMessage_ihm(id, MESSAGE_POSITION, pos, sizeof(PositionVoiture));
     pthread_mutex_unlock(&voitures[id].mutex);
     return 0;
 }

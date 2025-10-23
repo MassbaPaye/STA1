@@ -15,8 +15,6 @@ typedef struct {
 } MessageHeader;
 
 // === Envoi ===
-int sendPosition_ihm(int voiture_id, const PositionVoiture* pos);
-int sendFin_ihm(void);
 int sendMessage_ihm(int voiture_id, MessageType type, const void* message, size_t size);
 
 // === Réception ===
