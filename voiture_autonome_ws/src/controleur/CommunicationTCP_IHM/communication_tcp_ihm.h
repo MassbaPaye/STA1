@@ -4,28 +4,20 @@
 #include <stddef.h>
 #include "messages.h"
 
-// Socket unique de dialogue
 extern int sock;
 
-// Header commun à tous les messages
 typedef struct {
-    int voiture_id;     // Identifiant de la voiture concernée
-    MessageType type;   // Type du message (ITINERAIRE, POSITION, etc.)
-    size_t payload_size;// Taille utile des données
-} MessageHeader;
+    int voiture_id;
+    Itineraire iti;
+} MsgIti;
 
-// === Envoi ===
-int sendMessage_ihm(int voiture_id, MessageType type, const void* message, size_t size);
+typedef struct {
+    int voiture_id;
+    PositionVoiture pos;
+} MsgPos;
 
-// === Réception ===
-int recvMessage_ihm(int* voiture_id, MessageType* type, void* buffer, size_t max_size);
-int recvItineraire_ihm(int* voiture_id, Itineraire* iti);
-int recvFin_ihm(int* voiture_id, char* buffer, size_t max_size);
+int sendMessage_ihm( int id,  const PositionVoiture* pos);
 
-// Fonction principale de communication
-void* communication_ihm(void* arg);
-
-// Initialisation du serveur TCP
 void* initialisation_communication_ihm(void* arg);
 
 #endif

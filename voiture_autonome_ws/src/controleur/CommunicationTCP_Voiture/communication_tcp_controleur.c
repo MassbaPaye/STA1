@@ -5,8 +5,10 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "messages.h"
+#include "logger.h"
 #include "communication_tcp_controleur.h"
 #include "TCP_controleur_voiture.h"
+#include "controleur_globals.h"
 
 #define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
@@ -20,21 +22,18 @@ void* test_thread(void* arg) {
     return NULL;
 }
 
-/* === Communication bas niveau === */
 static int sendBuffer(int Id, const void* buffer, size_t size) {
     VoitureConnection* v = get_voiture_by_id(Id);
     if (!v) return -1;
     return send(v->sockfd, buffer, size, 0);
 }
 
-/* === Fonctions spécialisées === */
 int sendConsigne(int Id, const Consigne* cons) {
     return sendBuffer(Id, cons, sizeof(Consigne));
 }
 
-int sendItineraire(int sockfd, const Itineraire* iti) {
-    sendBuffer(sockfd, &iti->nb_points, sizeof(int));
-    return sendBuffer(sockfd, iti->points, iti->nb_points * sizeof(Point));
+int sendItineraire(int Id, const Itineraire* iti) {
+    return sendBuffer(Id, iti, sizeof(Itineraire));
 }
 
 int sendFin(int Id) {
@@ -43,17 +42,27 @@ int sendFin(int Id) {
     return sendBuffer(Id, texte, len);
 }
 
-/* === Fonctions génériques === */
-int sendMessage(int Id, MessageType type, void* message) {
-    if (sendBuffer(Id, &type, sizeof(MessageType)) <= 0) return -1;
-
+int sendMessage(int Id, MessageType type, const void* message) {
+    int a = sendBuffer(Id, &type, sizeof(MessageType));
+    if (a <= 0) {
+        ERR(TAG, "erreur a l'envoie du type");
+        return a;
+    }
+    int b;
     switch (type) {
         case MESSAGE_CONSIGNE:    return sendConsigne(Id, (Consigne*)message);
-        case MESSAGE_ITINERAIRE:  return sendItineraire(Id, (Itineraire*)message);
+        case MESSAGE_ITINERAIRE: 
+            b = sendItineraire(Id, (Itineraire*)message);
+            if (b <0 ) {
+                ERR(TAG, "1");
+                return b;
+            }
         case MESSAGE_FIN:         return sendFin(Id);
         default:                  return -1;
     }
+
 }
+
 
 // Affiche la liste des voitures connectées
 void afficher_voitures_connectees() {
@@ -105,11 +114,28 @@ void* initialisation_communication_controleur(void* arg) {
             printf("[Serveur] Nombre max de voitures atteint.\n");
             close(client_sd);
             free(v);
-            pthread_mutex_unlock(&mutex_voitures);
             continue;
         }
-        pthread_mutex_unlock(&mutex_voitures);
 
+        pthread_mutex_unlock(&mutex_voitures);
+        /*
+        printf("1\n");
+        Itineraire iti;
+        iti.nb_points = 1;
+        iti.points[0].x = 0;
+        iti.points[0].y = 1;
+        iti.points[0].z = 2;
+        set_voiture_itineraire(v->id_voiture, &iti)
+        get_voiture_itineraire(v->id_voiture, &iti);
+        
+        printf("2\n");
+        Consigne cons;
+        sendMessage(v->id_voiture, MESSAGE_CONSIGNE, &cons);
+        printf("4\n");
+        sendMessage(v->id_voiture, MESSAGE_ITINERAIRE, &iti);
+        printf("5\n");
+        */
+        pthread_mutex_unlock(&mutex_voitures);
         pthread_create(&v->tid, NULL, receive_thread, v);
 
         printf("[Serveur] Nouvelle voiture connectée, id=%d\n", v->id_voiture);

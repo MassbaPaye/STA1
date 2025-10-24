@@ -4,6 +4,7 @@
 //#include <stdbool.h>
 #include "config.h"
 
+
 /* Enumération pour le type de message échangé par TCP */
 typedef enum {
     MESSAGE_POSITION = 1,
@@ -80,7 +81,7 @@ typedef struct {
 
 typedef struct {
     int nb_points;
-    Point* points;
+    Point points[MAX_ITI];
 } Itineraire;
 
 // Le type Point sera surement redéfini avec les metadonnées de la carte

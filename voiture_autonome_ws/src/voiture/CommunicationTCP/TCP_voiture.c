@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
@@ -31,7 +32,7 @@ ConnexionTCP connexion_tcp = {
 
 void* receive_thread() {
     MessageType type;
-    char buffer[2048];
+    char buffer[sizeof(Itineraire) + 2048];
 
     while (1) {
         pthread_mutex_lock(&connexion_tcp.mutex);
@@ -67,6 +68,14 @@ void* receive_thread() {
             case MESSAGE_ITINERAIRE: {
                 Itineraire* iti = (Itineraire*) buffer;
                 set_itineraire(iti);
+                Itineraire* iti2 = (Itineraire*) buffer;
+                get_itineraire(iti2);
+                printf("[IHM] Itinéraire reçu \n");
+                for (int i = 0; i < iti2->nb_points; i++) {
+                    Point* p = &iti2->points[i];
+                    printf("  P%d: x=%.2f y=%.2f z=%.2f theta=%.2f pont=%d dep=%d\n",
+                            i, p->x, p->y, p->z, p->theta, p->pont, p->depacement);
+                }
                 break;
             }
 
@@ -104,13 +113,7 @@ int recvConsigne(Consigne* cons) {
 }
 
 int recvItineraire(Itineraire* iti) {
-    int n = recvBuffer(&iti->nb_points, sizeof(int));
-    if (n <= 0) return n;
-
-    iti->points = malloc(iti->nb_points * sizeof(Point));
-    if (!iti->points) return -1;
-
-    return recvBuffer(iti->points, iti->nb_points * sizeof(Point));
+    return recvBuffer(iti, sizeof(Itineraire));
 }
 
 int recvFin(char* buffer, size_t max_size) {

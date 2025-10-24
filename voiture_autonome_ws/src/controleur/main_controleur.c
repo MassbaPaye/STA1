@@ -26,7 +26,7 @@ int main() {
         perror("Erreur pthread_create");
         return EXIT_FAILURE;
     }
-
+    /*
     pthread_t thread_2;
     
     // Création du thread
@@ -34,7 +34,7 @@ int main() {
         perror("Erreur pthread_create");
         return EXIT_FAILURE;
     }
-
+    */
     // Exemple : afficher la taille de la queue
     INFO(TAG, "→ Taille initiale de la queue de demandes : %d", size_demande_queue());
 

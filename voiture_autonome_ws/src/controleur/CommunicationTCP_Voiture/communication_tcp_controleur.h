@@ -4,7 +4,7 @@
 #include "messages.h"
 
 /* === Fonctions génériques === */
-int sendMessage(int Id, MessageType type, void* message);
+int sendMessage(int Id, MessageType type, const void* message);
 
 /* === Fonctions spécialisées === */
 int sendConsigne(int Id, const Consigne* cons);

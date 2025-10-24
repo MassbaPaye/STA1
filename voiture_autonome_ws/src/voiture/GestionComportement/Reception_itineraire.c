@@ -32,13 +32,7 @@ int charger_itineraire_csv(const char* chemin_fichier) {
         return -1;
     }
 
-    // Allouer la mémoire pour les points
-    Point* points = malloc(nb_points * sizeof(Point));
-    if (!points) {
-        DBG(TAG, "Erreur d'allocation mémoire pour %d points", nb_points);
-        fclose(fichier);
-        return -1;
-    }
+    Itineraire iti;
 
     // Deuxième passe : lecture des données
     rewind(fichier);
@@ -54,20 +48,17 @@ int charger_itineraire_csv(const char* chemin_fichier) {
             continue;
         }
 
-        points[idx++] = p;
+        iti.points[idx++] = p;
         if (idx >= nb_points) break;
     }
     fclose(fichier);
 
     // Construire l'itinéraire
-    Itineraire iti;
     iti.nb_points = idx;
-    iti.points = points;
 
     // Enregistrer dans la structure globale
     if (set_itineraire(&iti) != 0) {
         DBG(TAG, "Échec de set_itineraire()");
-        free(points);
         return -1;
     }
 
