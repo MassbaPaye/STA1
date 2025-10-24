@@ -437,11 +437,12 @@ from typing import Tuple
 CAMERA_HORIZONTAL_FOV_DEG = 78.0  # IMX500
 
 # Modèle expérimental pour estimer la distance avant (à ajuster)
-A3, A2, A1, A0 = (-1.2e-9, 2.5e-6, -1.8e-3, 2.5)
+A4 ,A3, A2, A1, A0 = (-2.103e-12,7.285e-10, 8.7289e-6,0.00818, 15.9754)
 
 def _estimate_distance_from_bottom_y(bottom_y_px: float) -> float:
     y = float(bottom_y_px)
-    Y = (A3 * y**3) + (A2 * y**2) + (A1 * y) + A0
+    Y = (A4*y**4)+(A3 * y**3) + (A2 * y**2) + (A1 * y) + A0
+    Y=min(Y,60)
     return max(0.0, float(Y))
 
 def _bbox_to_coordinate_points(
