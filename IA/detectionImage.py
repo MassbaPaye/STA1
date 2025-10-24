@@ -138,12 +138,21 @@ class TFLiteYOLO:
         self.interpreter = tflite.Interpreter(model_path=str(weights))
         self.interpreter.allocate_tensors()
         self.inp = self.interpreter.get_input_details()[0]
-        self.out = self.interpreter.get_output_details()[0]
+        self.output_details = self.interpreter.get_output_details()
+        self.out = self.output_details[0]
 
         # Déduire format d'entrée
         self.in_h, self.in_w = self.inp['shape'][1], self.inp['shape'][2]
         # Certains exports YOLO ignorent self.imgsz; on force à la taille d'entrée du modèle
         self.imgsz = int(self.in_w)
+        self.num_classes = len(CLASS_NAMES)
+        # Essayer de déduire le nombre de classes réel à partir de la sortie
+        out_shape = tuple(int(s) for s in self.out.get('shape', ()))
+        feature_dims = [d for d in out_shape if d not in (0, 1) and d > 4]
+        if feature_dims:
+            inferred = feature_dims[0] - 4
+            if inferred > 0:
+                self.num_classes = max(self.num_classes, inferred)
 
     def infer(self, bgr, class_filter=None):
         h0, w0 = bgr.shape[:2]
@@ -153,32 +162,73 @@ class TFLiteYOLO:
 
         self.interpreter.set_tensor(self.inp['index'], x)
         self.interpreter.invoke()
-        pred = self.interpreter.get_tensor(self.out['index'])
-        # pred shape usually (1, N, 4+classes) or (1, N, 5+classes) with obj
-        pred = np.squeeze(pred)  # (N, C)
-        if pred.ndim != 2:
-            raise RuntimeError(f"Sortie inattendue du modèle TFLite: shape={pred.shape}")
 
-        if self.debug_raw and not hasattr(self, '_debug_dumped'):
-            print(f"[DEBUG] TFLite raw shape={pred.shape}, min={pred.min():.4f}, max={pred.max():.4f}")
-            print("[DEBUG] Exemple (5 premières lignes):")
-            for row in pred[:5]:
-                print("  ", " ".join(f"{v:0.3f}" for v in row[:10]))
+        raw_outputs = [
+            np.squeeze(self.interpreter.get_tensor(detail['index']))
+            for detail in self.output_details
+        ]
+
+        # Gestion des exports à sorties multiples (boxes + scores)
+        if len(raw_outputs) >= 2:
+            xywh = raw_outputs[0]
+            cls_raw = raw_outputs[1]
+            xywh = np.reshape(xywh, (-1, xywh.shape[-1]))
+            cls_raw = np.reshape(cls_raw, (-1, cls_raw.shape[-1]))
+            if xywh.shape[1] != 4:
+                raise RuntimeError(f"Sortie boxes inattendue: shape={xywh.shape}")
+            obj_raw = None
+        else:
+            pred = raw_outputs[0]
+            if pred.ndim == 3:
+                pred = pred.reshape(pred.shape[0], -1)
+            pred = np.squeeze(pred)
+            if pred.ndim != 2:
+                raise RuntimeError(f"Sortie inattendue du modèle TFLite: shape={pred.shape}")
+
+            if self.debug_raw and not hasattr(self, '_debug_dumped'):
+                print(f"[DEBUG] TFLite raw shape={pred.shape}, min={pred.min():.4f}, max={pred.max():.4f}")
+                print("[DEBUG] Exemple (5 premières lignes):")
+                for row in pred[:5]:
+                    print("  ", " ".join(f"{v:0.3f}" for v in row[:10]))
+                self._debug_dumped = True
+
+            if pred.shape[1] not in {4 + self.num_classes, 5 + self.num_classes}:
+                if pred.shape[0] in {4 + self.num_classes, 5 + self.num_classes}:
+                    pred = pred.T
+
+            nc = self.num_classes or max(0, pred.shape[1] - 4)
+            if pred.shape[1] == (4 + nc):
+                xywh = pred[:, :4]
+                cls_raw = pred[:, 4:]
+                obj_raw = None
+            elif pred.shape[1] == (5 + nc):
+                xywh = pred[:, :4]
+                obj_raw = pred[:, 4:5]
+                cls_raw = pred[:, 5:]
+            else:
+                xywh = pred[:, :4]
+                cls_raw = pred[:, 4:]
+                obj_raw = None
+        # Debug list for multiple-output branch
+        if len(raw_outputs) >= 2 and self.debug_raw and not hasattr(self, '_debug_dumped'):
+            print(f"[DEBUG] TFLite boxes shape={xywh.shape}, scores shape={cls_raw.shape}")
             self._debug_dumped = True
 
-        # Détecter si un logit d'objectness est présent
-        # Heuristique : si C >= 6 et les colonnes après 5 ressemblent à des scores de classes
-        if pred.shape[1] >= 6:
-            # Essayer format [x,y,w,h,obj,cls...]
-            xywh = pred[:, :4]
-            obj = pred[:, 4:5]
-            cls = pred[:, 5:]
-            cls_scores = obj * cls  # multiplication obj * prob classe
+        # Mise à l'échelle des scores : certains exports renvoient des logits bruts
+        if cls_raw.size == 0:
+            return []
+        if cls_raw.max() > 1.0 or cls_raw.min() < 0.0:
+            cls_scores = 1.0 / (1.0 + np.exp(-cls_raw))
         else:
-            # Format [x,y,w,h,cls...] (rare)
-            xywh = pred[:, :4]
-            cls = pred[:, 4:]
-            cls_scores = cls
+            cls_scores = cls_raw
+
+        # Conserver objectness si disponible
+        if 'obj_raw' in locals() and obj_raw is not None:
+            if obj_raw.max() > 1.0 or obj_raw.min() < 0.0:
+                obj_scores = 1.0 / (1.0 + np.exp(-obj_raw))
+            else:
+                obj_scores = obj_raw
+            cls_scores = cls_scores * obj_scores
 
         scores = cls_scores.max(axis=1)
         class_probs = cls_scores
@@ -204,10 +254,16 @@ class TFLiteYOLO:
         # YOLO export renvoie souvent en pixels sur l'entrée; sinon normalisées [0,1].
         # On détecte en supposant que max coord > 1 => déjà en pixels
         if xywh.size:
-            scale = 1.0 if np.max(xywh[:, :2]) > 1.0 else float(self.imgsz)
+            if np.all(xywh <= 1.5):
+                xywh_px = xywh.copy()
+                xywh_px[:, 0] *= float(self.in_w)
+                xywh_px[:, 1] *= float(self.in_h)
+                xywh_px[:, 2] *= float(self.in_w)
+                xywh_px[:, 3] *= float(self.in_h)
+            else:
+                xywh_px = xywh
         else:
-            scale = float(self.imgsz)
-        xywh_px = xywh * scale
+            xywh_px = xywh
         x, y, w, h = xywh_px[:, 0], xywh_px[:, 1], xywh_px[:, 2], xywh_px[:, 3]
         x1 = x - w / 2
         y1 = y - h / 2
@@ -296,11 +352,8 @@ def draw_detections(frame: np.ndarray, dets, fps: float | None = None):
     annotated = frame.copy()
     for x1, y1, x2, y2, score, cid in dets:
         cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 200, 255), 2)
-        label_name = CLASS_NAMES.get(cid)
-        if label_name:
-            label = f"{label_name} {score:.2f}"
-        else:
-            label = f"{cid} {score:.2f}"
+        label_name = CLASS_NAMES.get(cid, f"class_{cid}")
+        label = f"{label_name} {score:.2f}"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         cv2.rectangle(annotated, (x1, y1 - th - 6), (x1 + tw + 6, y1), (0, 0, 0), -1)
         cv2.putText(annotated, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
@@ -375,7 +428,7 @@ def main():
         if args.print_dets:
             if dets:
                 formatted = [
-                    f"{CLASS_NAMES.get(cid, cid)} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
+                    f"Obstacle {CLASS_NAMES.get(cid, f'class_{cid}')} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
                     for x1, y1, x2, y2, score, cid in dets
                 ]
                 print(f"[DETECTIONS] {len(dets)} -> " + "; ".join(formatted))
@@ -406,7 +459,7 @@ def main():
             if args.print_dets:
                 if dets:
                     formatted = [
-                        f"{CLASS_NAMES.get(cid, cid)} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
+                        f"Obstacle {CLASS_NAMES.get(cid, f'class_{cid}')} conf={score:.2f} bbox=({x1},{y1},{x2},{y2})"
                         for x1, y1, x2, y2, score, cid in dets
                     ]
                     print(f"[DETECTIONS] {len(dets)} -> " + "; ".join(formatted))

@@ -31,10 +31,17 @@ except Exception as _err:
     UltralyticsYOLO = None
     _ULTRALYTICS_IMPORT_ERROR = _err
 
-# Modèle TFLite exporté localement (chemin par défaut vers best_float32.tflite)
-DEFAULT_TFLITE_WEIGHTS = (
+# Modèles TFLite exportés localement
+DEFAULT_TFLITE_WEIGHTS_FLOAT32 = (
     Path(__file__).resolve().parent.parent / "models" / "best_saved_model" / "best_float32.tflite"
 )
+DEFAULT_TFLITE_WEIGHTS_FLOAT16 = (
+    Path(__file__).resolve().parent.parent / "models" / "best_saved_model" / "best_float16.tflite"
+)
+# Valeur par défaut historique (float32) ; peut être remplacée selon l'usage
+DEFAULT_TFLITE_WEIGHTS = DEFAULT_TFLITE_WEIGHTS_FLOAT32
+# Modèle recommandé pour l'IMX500 + accélérateur (float16)
+IMX500_DEFAULT_TFLITE_WEIGHTS = DEFAULT_TFLITE_WEIGHTS_FLOAT16
 
 CLASS_NAMES = {
     0: "OBSTACLE_VOITURE",
@@ -267,6 +274,55 @@ except Exception:
     from tensorflow import lite as tflite
 
 
+def _load_tflite_delegate(delegate_path: str):
+    """
+    Charge dynamiquement un délégué TFLite (EdgeTPU, GPU, IMX500, ...).
+    Renvoie l'objet délégué à passer à experimental_delegates.
+    """
+    if not delegate_path:
+        return None
+    load_fn = getattr(tflite, "load_delegate", None)
+    if load_fn is not None:
+        return load_fn(delegate_path)
+    # Fallback TensorFlow complet
+    try:
+        import tensorflow as tf  # type: ignore
+        experimental = getattr(getattr(tf, "lite", None), "experimental", None)
+        if experimental and hasattr(experimental, "load_delegate"):
+            return experimental.load_delegate(delegate_path)
+    except Exception as exc:  # pragma: no cover - informative fallback
+        raise RuntimeError(
+            f"Impossible de charger le délégué TFLite '{delegate_path}': {exc}"
+        ) from exc
+    raise RuntimeError(
+        f"La plateforme TFLite courante ne supporte pas load_delegate pour '{delegate_path}'."
+    )
+
+
+def _create_tflite_interpreter(model_path: str, num_threads: int, delegate: str | None):
+    """
+    Crée un interpréteur TFLite en essayant successivement les combinaisons
+    (num_threads, delegates) en fonction du support de la build.
+    """
+    kwargs = {"model_path": model_path}
+    if num_threads and num_threads > 0:
+        kwargs["num_threads"] = int(num_threads)
+    delegate_obj = None
+    if delegate:
+        delegate_obj = _load_tflite_delegate(delegate)
+        kwargs["experimental_delegates"] = [delegate_obj]
+    try:
+        return tflite.Interpreter(**kwargs)
+    except TypeError:
+        # Certaines builds ne supportent pas num_threads en présence d'un délégué
+        kwargs.pop("num_threads", None)
+        try:
+            return tflite.Interpreter(**kwargs)
+        except TypeError:
+            kwargs.pop("experimental_delegates", None)
+            return tflite.Interpreter(**kwargs)
+
+
 def _nms(boxes, scores, iou_thresh=0.45, top_k=300):
     if len(boxes) == 0:
         return []
@@ -327,16 +383,18 @@ def capture_photo(
     awb_mode: Optional[str] = None,
     exposure_mode: Optional[str] = None,
     warmup: float = 1.0,
-) -> Tuple[np.ndarray, Path]:
+    save_to_disk: bool = True,
+) -> Tuple[np.ndarray, Optional[Path]]:
     """
     Capture une image via Picamera2, l'enregistre et renvoie le frame (BGR).
-    La photo remplace systématiquement le fichier `output_dir/filename`.
+    Si save_to_disk=False, ne sauvegarde pas le fichier et renvoie (frame, None).
     """
-    # Préparer le dossier de sortie
-    output_path = Path(output_dir) if output_dir is not None else DEFAULT_PHOTO_DIR
-    output_path = output_path.expanduser().resolve()
-    output_path.mkdir(parents=True, exist_ok=True)
-    photo_path = output_path / filename
+    photo_path: Optional[Path] = None
+    if save_to_disk:
+        output_path = Path(output_dir) if output_dir is not None else DEFAULT_PHOTO_DIR
+        output_path = output_path.expanduser().resolve()
+        output_path.mkdir(parents=True, exist_ok=True)
+        photo_path = output_path / filename
 
     # Paramètres optionnels Picamera2
     controls: Dict[str, object] = {}
@@ -398,7 +456,8 @@ def capture_photo(
     else:
         frame = np.asarray(array)
 
-    cv2.imwrite(str(photo_path), frame)
+    if save_to_disk and photo_path is not None:
+        cv2.imwrite(str(photo_path), frame)
     return frame, photo_path
 
 def _list_tflite_candidates(max_n=8):
@@ -502,7 +561,15 @@ class TFLiteYOLO:
       - 4 premières valeurs = bbox (xywh) en pixels de l'image redimensionnée
       - 80 suivantes = scores de classes (après sigmoïde)
     """
-    def __init__(self, weights: Path, imgsz: int = 640, conf: float = 0.25, iou: float = 0.45, threads: int = 2):
+    def __init__(
+        self,
+        weights: Path,
+        imgsz: int = 640,
+        conf: float = 0.25,
+        iou: float = 0.45,
+        threads: int = 2,
+        delegate: str | None = None,
+    ):
         # Résolution robuste du chemin des poids
         w = Path(weights).expanduser()
         if not w.exists():
@@ -527,10 +594,12 @@ class TFLiteYOLO:
         self.imgsz = int(imgsz)
         self.conf = float(conf)
         self.iou = float(iou)
-        try:
-            self.interpreter = tflite.Interpreter(model_path=str(self.weights), num_threads=int(threads))
-        except TypeError:
-            self.interpreter = tflite.Interpreter(model_path=str(self.weights))
+        self.delegate = delegate
+        self.interpreter = _create_tflite_interpreter(
+            str(self.weights),
+            int(threads),
+            delegate,
+        )
         self.interpreter.allocate_tensors()
         self.inp = self.interpreter.get_input_details()[0]
         self.out = self.interpreter.get_output_details()[0]
@@ -656,7 +725,14 @@ class TFLiteYOLO:
 # --- Détection d'objets avec TFLiteYOLO sur image unique ---
 
 @lru_cache(maxsize=3)
-def _load_tflite_detector_cached(weights_str: str, imgsz: int, conf: float, iou: float, threads: int):
+def _load_tflite_detector_cached(
+    weights_str: str,
+    imgsz: int,
+    conf: float,
+    iou: float,
+    threads: int,
+    delegate_key: str,
+):
     weights = Path(weights_str)
     if not weights.exists():
         raise FileNotFoundError(f"Poids TFLite introuvables: {weights}")
@@ -665,7 +741,8 @@ def _load_tflite_detector_cached(weights_str: str, imgsz: int, conf: float, iou:
             f"Le fichier de poids fourni n'est pas un modèle TFLite: {weights}. "
             "Spécifie un fichier .tflite via --weights."
         )
-    return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads)
+    delegate = delegate_key or None
+    return TFLiteYOLO(weights=weights, imgsz=imgsz, conf=conf, iou=iou, threads=threads, delegate=delegate)
 
 
 @lru_cache(maxsize=2)
@@ -698,31 +775,18 @@ def _normalize_classes_arg(classes) -> Optional[List[int]]:
         return [int(c.strip()) for c in classes.split(',') if c.strip() != '']
     raise TypeError("Argument 'classes' doit être une liste d'entiers, un tuple, une chaîne '0,1', ou None.")
 
-def detect_objects_tflite_from_image(
-    image_bgr: np.ndarray,
-    weights: str | Path,
-    imgsz: int = 640,
-    conf: float = 0.25,
-    iou: float = 0.45,
-    threads: int = 2,
-    classes=None
+
+def _detections_to_obstacles(
+    detections: List[Tuple[int, int, int, int, float, int]],
+    image_shape: Tuple[int, ...],
 ) -> List[Obstacle]:
-    if not isinstance(image_bgr, np.ndarray):
-        raise TypeError("image_bgr doit être un np.ndarray (image OpenCV BGR)")
-    
-    weights_path = str(Path(weights))
-    detector = _load_tflite_detector_cached(weights_path, int(imgsz), float(conf), float(iou), int(threads))
-
-    class_filter = _normalize_classes_arg(classes)
-
-    dets = detector.infer(image_bgr, class_filter=class_filter)
-
-    image_shape = image_bgr.shape
     obstacles: List[Obstacle] = []
-    for (x1, y1, x2, y2, score, cid) in dets:
+    for (x1, y1, x2, y2, score, cid) in detections:
         class_id = int(cid)
         label = CLASS_NAMES.get(class_id, f"class_{class_id}")
-        point_left, point_right = _bbox_to_coordinate_points((x1, y1, x2, y2), image_shape)
+        point_left, point_right = _bbox_to_coordinate_points(
+            (int(x1), int(y1), int(x2), int(y2)), image_shape
+        )
         obstacles.append(
             Obstacle(
                 label=label,
@@ -733,6 +797,35 @@ def detect_objects_tflite_from_image(
             )
         )
     return obstacles
+
+def detect_objects_tflite_from_image(
+    image_bgr: np.ndarray,
+    weights: str | Path,
+    imgsz: int = 640,
+    conf: float = 0.25,
+    iou: float = 0.45,
+    threads: int = 2,
+    classes=None,
+    delegate: str | None = None,
+) -> List[Obstacle]:
+    if not isinstance(image_bgr, np.ndarray):
+        raise TypeError("image_bgr doit être un np.ndarray (image OpenCV BGR)")
+    
+    weights_path = str(Path(weights))
+    detector = _load_tflite_detector_cached(
+        weights_path,
+        int(imgsz),
+        float(conf),
+        float(iou),
+        int(threads),
+        delegate or "",
+    )
+
+    class_filter = _normalize_classes_arg(classes)
+
+    dets = detector.infer(image_bgr, class_filter=class_filter)
+
+    return _detections_to_obstacles(dets, image_bgr.shape)
 
 
 def detect_objects_ultralytics_from_image(
@@ -814,6 +907,7 @@ def detect_obstacles_from_image(
     threads: int = 2,
     device: str | None = "cpu",
     classes=None,
+    delegate: str | None = None,
 ) -> List[Obstacle]:
     weights_path = Path(weights)
     suffix = weights_path.suffix.lower()
@@ -827,6 +921,7 @@ def detect_obstacles_from_image(
             iou=iou,
             threads=threads,
             classes=classes,
+            delegate=delegate,
         )
     if suffix == ".pt":
         return detect_objects_ultralytics_from_image(
@@ -905,6 +1000,122 @@ def send_obstacles_udp(
     return sent
 
 
+def run_imx500_detection_stream(
+    *,
+    host: str,
+    port: int,
+    weights: Path,
+    imgsz: int,
+    conf: float,
+    iou: float,
+    threads: int,
+    delegate: str | None,
+    resolution: str,
+    awb_mode: Optional[str],
+    exposure_mode: Optional[str],
+    warmup: float,
+    classes=None,
+    send_udp: bool = True,
+    display: bool = False,
+    max_frames: Optional[int] = None,
+    udp_timeout: Optional[float] = None,
+) -> None:
+    """
+    Boucle de détection continue directement depuis la caméra IMX500.
+    Capture les frames, exécute le modèle TFLite (float16 recommandé) via l'accélérateur
+    et transmet les obstacles via UDP sans sauvegarder d'image intermédiaire.
+    """
+    if Picamera2 is None:
+        raise RuntimeError(
+            "Picamera2 est indisponible – cette fonctionnalité nécessite un Raspberry Pi/libcamera."
+        )
+
+    size = _resolve_imx500_resolution(resolution)
+    picam2 = Picamera2()
+    transform = Transform(hflip=True, vflip=True)
+    config = picam2.create_video_configuration(
+        main={"size": size, "format": "BGR888"},
+        transform=transform,
+        buffer_count=3,
+    )
+    picam2.configure(config)
+    picam2.start()
+
+    try:
+        if warmup > 0:
+            time.sleep(warmup)
+
+        controls: Dict[str, object] = {}
+        if awb_mode:
+            controls["AwbMode"] = awb_mode
+        if exposure_mode:
+            controls["ExposureMode"] = exposure_mode
+        if controls:
+            picam2.set_controls(controls)
+            time.sleep(0.2)
+
+        delegate_key = delegate or ""
+        detector = _load_tflite_detector_cached(
+            str(weights),
+            int(imgsz),
+            float(conf),
+            float(iou),
+            int(threads),
+            delegate_key,
+        )
+        class_filter = _normalize_classes_arg(classes)
+
+        window_name = "IMX500 – Détection temps réel"
+        target_frames = max_frames if (max_frames and max_frames > 0) else None
+        frame_idx = 0
+
+        print(f"[IMX500] Démarrage du flux {size[0]}x{size[1]} avec modèle {weights.name} (delegate={delegate or 'CPU'})")
+
+        while target_frames is None or frame_idx < target_frames:
+            array = picam2.capture_array("main")
+            if array is None:
+                continue
+            if array.ndim == 3 and array.shape[2] == 3:
+                frame_bgr = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+            else:
+                frame_bgr = np.asarray(array)
+
+            dets = detector.infer(frame_bgr, class_filter=class_filter)
+            obstacles = _detections_to_obstacles(dets, frame_bgr.shape)
+
+            print(f"[IMX500] frame={frame_idx} obstacles={len(obstacles)}")
+
+            if send_udp:
+                try:
+                    send_obstacles_udp(obstacles, host, port, timeout=udp_timeout)
+                except RuntimeError as exc:
+                    print(f"[IMX500][UDP] {exc}")
+
+            if display:
+                annotated = frame_bgr.copy()
+                draw_detections_on_image(annotated, obstacles)
+                cv2.imshow(window_name, annotated)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+
+            frame_idx += 1
+
+    except KeyboardInterrupt:
+        print("\n[IMX500] Arrêt demandé par l'utilisateur.")
+    finally:
+        try:
+            picam2.stop()
+        except Exception:
+            pass
+        try:
+            picam2.close()
+        except Exception:
+            pass
+        if display:
+            cv2.destroyAllWindows()
+
+
 def draw_detections_on_image(img: np.ndarray, obstacles: List[Obstacle]) -> None:
     for obs in obstacles:
         left = obs.point_left
@@ -944,6 +1155,8 @@ def main():
     parser.add_argument("--iou", type=float, default=0.45, help="Seuil IoU pour la NMS.")
     parser.add_argument("--threads", type=int, default=2, help="Nombre de threads TFLite (ignoré pour .pt).")
     parser.add_argument("--device", default="cpu", help="Périphérique Ultralytics (.pt) : cpu, cuda:0, auto…")
+    parser.add_argument("--delegate", default="", help="Chemin vers un délégué TFLite (EdgeTPU, IMX500, GPU...).")
+    parser.add_argument("--classes", default=None, help="Filtre optionnel des classes (ex: '0,1').")
     parser.add_argument("--photo-dir", default=None, help="Dossier où sauvegarder la photo (défaut: dossier Photos).")
     parser.add_argument("--photo-name", default=DEFAULT_PHOTO_FILENAME, help="Nom du fichier photo (défaut: latest.jpg).")
     parser.add_argument("--resolution", default="12mp", help="Résolution Picamera2 (ex: 12mp, 2mp, 1920x1080).")
@@ -951,7 +1164,54 @@ def main():
     parser.add_argument("--exposure", default=None, help="Mode d'exposition (Picamera2).")
     parser.add_argument("--warmup", type=float, default=1.0, help="Temps de préchauffage caméra (secondes).")
     parser.add_argument("--display", action="store_true", help="Affiche la photo annotée (requiert affichage).")
+    parser.add_argument("--no-save-photo", action="store_true", help="Ne pas enregistrer la photo sur disque (capture unique).")
+    parser.add_argument(
+        "--imx500-live",
+        action="store_true",
+        help="Capture continue IMX500 + TFLite float16 via accélérateur (aucune sauvegarde de photo).",
+    )
+    parser.add_argument("--max-frames", type=int, default=0, help="Limite de frames en mode --imx500-live (0 = infini).")
+    parser.add_argument("--udp-timeout", type=float, default=None, help="Timeout UDP en secondes (optionnel).")
     args = parser.parse_args()
+
+    delegate = args.delegate or None
+    classes = args.classes
+
+    if args.imx500_live and args.weights == str(DEFAULT_TFLITE_WEIGHTS):
+        weights_path = IMX500_DEFAULT_TFLITE_WEIGHTS
+    else:
+        weights_path = Path(args.weights).expanduser()
+
+    if not Path(weights_path).exists():
+        print(f"Modèle introuvable: {weights_path}")
+        if Path(DEFAULT_TFLITE_WEIGHTS_FLOAT32).exists():
+            print(f"Essayez avec --weights {DEFAULT_TFLITE_WEIGHTS_FLOAT32}")
+        return
+
+    if args.imx500_live:
+        try:
+            run_imx500_detection_stream(
+                host=args.host,
+                port=args.port,
+                weights=Path(weights_path),
+                imgsz=args.imgsz,
+                conf=args.conf,
+                iou=args.iou,
+                threads=args.threads,
+                delegate=delegate,
+                resolution=args.resolution,
+                awb_mode=args.awb,
+                exposure_mode=args.exposure,
+                warmup=args.warmup,
+                classes=classes,
+                send_udp=True,
+                display=args.display,
+                max_frames=args.max_frames if args.max_frames > 0 else None,
+                udp_timeout=args.udp_timeout,
+            )
+        except Exception as exc:
+            print(f"Erreur lors de la détection IMX500 en continu: {exc}")
+        return
 
     try:
         frame, photo_path = capture_photo(
@@ -961,8 +1221,12 @@ def main():
             awb_mode=args.awb,
             exposure_mode=args.exposure,
             warmup=args.warmup,
+            save_to_disk=not args.no_save_photo,
         )
-        print(f"Photo sauvegardée dans {photo_path}")
+        if photo_path is not None:
+            print(f"Photo sauvegardée dans {photo_path}")
+        else:
+            print("Photo capturée (non sauvegardée).")
     except RuntimeError as exc:
         print(f"Erreur lors de la capture photo: {exc}")
         return
@@ -970,12 +1234,14 @@ def main():
     try:
         obstacles = detect_obstacles_from_image(
             frame,
-            Path(args.weights),
+            Path(weights_path),
             imgsz=args.imgsz,
             conf=args.conf,
             iou=args.iou,
             threads=args.threads,
             device=args.device,
+            classes=classes,
+            delegate=delegate,
         )
     except Exception as exc:
         print(f"Erreur lors de la détection: {exc}")
@@ -984,7 +1250,7 @@ def main():
     print(f"{len(obstacles)} obstacle(s) détecté(s).")
 
     try:
-        nbytes = send_obstacles_udp(obstacles, args.host, args.port)
+        nbytes = send_obstacles_udp(obstacles, args.host, args.port, timeout=args.udp_timeout)
         print(f"Obstacles envoyés ({nbytes} octets) à {args.host}:{args.port}")
     except RuntimeError as e:
         print(f"Erreur UDP: {e}")

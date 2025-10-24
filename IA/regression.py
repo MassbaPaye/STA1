@@ -3,7 +3,7 @@ import pandas as pd
 import cv2
 
 # --- Dossier contenant les images ---
-image_folder = "IA/ImageRegression"
+image_folder = "IA/Photos"
 image_files = [f for f in os.listdir(image_folder) if f.lower().endswith(('.jpg', '.png'))]
 
 clicks = []
