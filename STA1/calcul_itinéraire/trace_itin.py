@@ -612,7 +612,7 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
     
     visualize_final_path(dense_trajectory, fichier_csv, fichier_arcs)
     
-    # === 6. Conversion en liste de listes (DEMANDE UTILISATEUR) === <--- MODIFIÉ
+    # === 6. Conversion en liste de listes 
     
     if not dense_trajectory:
         print("Avertissement : Trajectoire dense vide, retour de None.")
@@ -642,9 +642,5 @@ def calcul_et_interpolation_itin(fichier_csv, fichier_arcs, localisation_voiture
         
     print(f"✅ Trajectoire convertie en liste de listes (contient {len(list_of_lists_output)} lignes, en-tête inclus).")
     
-    # Retourner la nouvelle structure
+    # Retourner la  structure
     return list_of_lists_output
-    
-    # <--- FIN DES MODIFICATIONS
-
-#
