@@ -55,8 +55,8 @@ DEFAULT_PHOTO_FILENAME = "latest.jpg"
 class Point:
     x: float
     y: float
-    z: float = 0.0
-    theta: float = 0.0
+    z: float 
+    theta: float 
 
 
 @dataclass
