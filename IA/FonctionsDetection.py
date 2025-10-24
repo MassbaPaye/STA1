@@ -431,56 +431,67 @@ def _pixel_to_signed_normalized(value: float, max_value: int) -> float:
         return 0.0
     return ((float(value) / float(max_value - 1)) * 2.0) - 1.0
 
+import math
+from typing import Tuple
+
+CAMERA_HORIZONTAL_FOV_DEG = 78.0  # IMX500
+
+# Modèle expérimental pour estimer la distance avant (à ajuster)
+A3, A2, A1, A0 = (-1.2e-9, 2.5e-6, -1.8e-3, 2.5)
+
+def _estimate_distance_from_bottom_y(bottom_y_px: float) -> float:
+    y = float(bottom_y_px)
+    Y = (A3 * y**3) + (A2 * y**2) + (A1 * y) + A0
+    return max(0.0, float(Y))
 
 def _bbox_to_coordinate_points(
     bbox: Tuple[int, int, int, int],
     image_shape: Tuple[int, int, int],
-) -> Tuple[Point, Point]:
+) -> Tuple["Point", "Point"]:
     """
-    Transforme une bounding box (en pixels) en deux points normalisés.
-    Les coordonnées sont exprimées dans [-1, 1] pour x et y :
-      - x = -1 → bord gauche, +1 → bord droit
-      - y = -1 → haut, +1 → bas
-    On ajoute également une estimation simple de la profondeur (z) et de l'angle horizontal (theta).
+    Sortie :
+      - x = X latéral (m)
+      - y = Y avant (m)
+      - z = largeur apparente de la bbox (px ou normalisée)
+      - theta distinct pour gauche/droite
     """
     h, w = image_shape[:2]
     x1, y1, x2, y2 = bbox
 
-    # Clamp pour rester dans l'image
+    # Clamp
     x1 = float(min(max(x1, 0), w - 1))
     x2 = float(min(max(x2, 0), w - 1))
     y1 = float(min(max(y1, 0), h - 1))
     y2 = float(min(max(y2, 0), h - 1))
 
     bottom_y = y2
-    center_x = (x1 + x2) / 2.0
-    center_y = (y1 + y2) / 2.0
 
-    # Coordonnées normalisées   # question Victor normalement on devrait pas mettre y la distance qu'on calcul avec notre modèle expérimental, et en X la position latérale par rapport à la voiture avec Y*tan(theta-droite),Y*tan(theta gauche)
-    left_point = Point(
-        x=_pixel_to_signed_normalized(x1, w),
-        y=_pixel_to_signed_normalized(bottom_y, h),
-    )
-    right_point = Point(
-        x=_pixel_to_signed_normalized(x2, w),
-        y=_pixel_to_signed_normalized(bottom_y, h),
-    )
+    # 1) Distance avant (m)
+    Y_m = _estimate_distance_from_bottom_y(bottom_y)
 
-    # 4) "Profondeur relative" = largeur apparente de la bbox ppur les panneaux qu'on va stocker dans z 
+    # 2) Angles horizontaux distincts
+    hfov_rad = math.radians(CAMERA_HORIZONTAL_FOV_DEG)
+    cx = (w - 1) / 2.0
+    x1_norm = (x1 - cx) / cx
+    x2_norm = (x2 - cx) / cx
+    theta_left  = x1_norm * (hfov_rad / 2.0)
+    theta_right = x2_norm * (hfov_rad / 2.0)
+
+    # 3) Positions latérales (m)
+    X_left  = Y_m * math.tan(theta_left)
+    X_right = Y_m * math.tan(theta_right)
+
+    # 4) "Profondeur relative" = largeur apparente de la bbox
     #    soit en pixels, soit normalisée par la largeur image
     width_px = abs(x2 - x1)
     depth_rel = width_px / w  # valeur normalisée entre 0 et 1
 
-    # Orientation : on projette le centre sur l'angle horizontal de la caméra
-    hfov_rad = math.radians(CAMERA_HORIZONTAL_FOV_DEG)
-    theta = _pixel_to_signed_normalized(center_x, w) * (hfov_rad / 2.0)
-
-    left_point.z = depth_rel
-    right_point.z = depth_rel
-    left_point.theta = theta
-    right_point.theta = theta
+    # 5) Création des points
+    left_point  = Point(x=X_left,  y=Y_m, z=depth_rel, theta=theta_left)
+    right_point = Point(x=X_right, y=Y_m, z=depth_rel, theta=theta_right)
 
     return left_point, right_point
+
 
 
 # --- Détecteur YOLOv8 TFLite autonome ---
