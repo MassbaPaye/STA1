@@ -14,12 +14,10 @@
 
 atomic_int voiture_connectee = 0;
 
-/* --- Fonctions utilitaires internes --- */
+// Envoie de Message
 static int sendBuffer(const void* buffer, size_t size) {
     return send(connexion_tcp.sockfd, buffer, size, 0);
 }
-
-/* === Fonctions spécialisées === */
 
 int sendPositionVoiture(const PositionVoiture* pos) {
     return sendBuffer(pos, sizeof(PositionVoiture));
@@ -35,8 +33,6 @@ int sendFin() {
     return sendBuffer( texte, len);
 }
 
-/* === Fonctions génériques === */
-
 int sendMessage(MessageType type, void* message) {
     // envoyer d’abord le type
     sendBuffer(&type, sizeof(MessageType));
@@ -47,28 +43,6 @@ int sendMessage(MessageType type, void* message) {
         case MESSAGE_FIN:         return sendFin();
         default: return -1;
     }
-}
-
-// Déconnecte proprement le client voiture du contrôleur
-void deconnecter_controleur() {
-    pthread_mutex_lock(&connexion_tcp.mutex);
-    connexion_tcp.stop_client = true;
-    connexion_tcp.voiture_connectee = false;
-
-    if (connexion_tcp.sockfd >= 0) {
-        close(connexion_tcp.sockfd);
-        connexion_tcp.sockfd = -1;
-    }
-    pthread_mutex_unlock(&connexion_tcp.mutex);
-
-    // Attendre le thread de réception interne
-    if (connexion_tcp.tid_rcv != 0) {
-        pthread_cancel(connexion_tcp.tid_rcv);   // ou utiliser un flag d'arrêt dans receive_thread
-        pthread_join(connexion_tcp.tid_rcv, NULL);
-        connexion_tcp.tid_rcv = 0;
-    }
-
-    INFO(TAG, "Voiture déconnecté proprement du contrôleur");
 }
 
 void* initialisation_communication_voiture(void* arg) {
@@ -100,7 +74,7 @@ void* initialisation_communication_voiture(void* arg) {
             pthread_mutex_lock(&connexion_tcp.mutex);
             connexion_tcp.sockfd = sock;
             connexion_tcp.voiture_connectee = true;
-            // Lancement du thread de réception si pas déjà lancé
+            // Lancement du thread de réception
             if (connexion_tcp.tid_rcv == 0) {
                 if (pthread_create(&connexion_tcp.tid_rcv, NULL, receive_thread, NULL) != 0) {
                     perror("Erreur création thread réception");

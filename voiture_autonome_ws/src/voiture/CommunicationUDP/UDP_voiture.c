@@ -34,8 +34,7 @@ void* initialisation_communication_camera(void* arg) {
         pthread_exit(NULL);
     }
 
-    printf("✅ Récepteur UDP prêt sur 127.0.0.1:%d\n", PORT);
-    printf("En attente de messages JSON...\n\n");
+    printf("Récepteur UDP prêt sur 127.0.0.1:%d\n", PORT);
 
     while (1) {
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE - 1, 0,
@@ -50,21 +49,20 @@ void* initialisation_communication_camera(void* arg) {
         DonneesDetection *detection = parse_json_to_donnees(buffer);
         set_donnees_detection(detection);
         DonneesDetection detection2;
+        get_donnees_detection(&detection2);
 
-        if (get_donnees_detection(&detection2)) {
-            printf("Nombre d’obstacles détectés : %d\n", detection2.count);
-            for (int i = 0; i < detection2.count; i++) {
-                printf("→ Obstacle %d : type=%d, pointG=(%f,%f,%f), pointD=(%f,%f,%f)\n",
-                    i,
-                    detection2.obstacle[i].type,
-                    detection2.obstacle[i].pointg.x, detection2.obstacle[i].pointg.y, detection2.obstacle[i].pointg.z,
-                    detection2.obstacle[i].pointd.x, detection2.obstacle[i].pointd.y, detection2.obstacle[i].pointd.z);
-            }
+        printf("Nombre d’obstacles détectés : %d\n", detection2.count);
+        for (int i = 0; i < detection2.count; i++) {
+            printf("→ Obstacle %d : type=%d, pointG=(%f,%f,%f), pointD=(%f,%f,%f)\n",
+                i,
+                detection2.obstacle[i].type,
+                detection2.obstacle[i].pointg.x, detection2.obstacle[i].pointg.y, detection2.obstacle[i].pointg.z,
+                detection2.obstacle[i].pointd.x, detection2.obstacle[i].pointd.y, detection2.obstacle[i].pointd.z);
         }
 
         char sender_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(sender_addr.sin_addr), sender_ip, INET_ADDRSTRLEN);
-        printf("📩 Message reçu de %s:%d\n", sender_ip, ntohs(sender_addr.sin_port));
+        printf("Message reçu de %s:%d\n", sender_ip, ntohs(sender_addr.sin_port));
         printf("Contenu JSON (%d octets) :\n%s\n\n", n, buffer);
         fflush(stdout);
         
@@ -77,14 +75,14 @@ void* initialisation_communication_camera(void* arg) {
 DonneesDetection* parse_json_to_donnees(const char *json_str) {
     DonneesDetection *data = malloc(sizeof(DonneesDetection));
     if (!data) {
-        fprintf(stderr, "❌ Erreur malloc DonneesDetection\n");
+        fprintf(stderr, "Erreur malloc DonneesDetection\n");
         return NULL;
     }
     memset(data, 0, sizeof(DonneesDetection));
 
     cJSON *root = cJSON_Parse(json_str);
     if (!root) {
-        fprintf(stderr, "❌ Erreur JSON invalide\n");
+        fprintf(stderr, "Erreur JSON invalide\n");
         free(data);
         return NULL;
     }

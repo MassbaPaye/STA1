@@ -1,9 +1,3 @@
-/********************************************************/
-/* Serveur TCP multi-voitures avec interface            */
-/* Date : 14/10/2025                                    */
-/* Version : 3.3                                        */
-/********************************************************/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,16 +10,14 @@
 #include "controleur_globals.h"
 #include "controleur_routier.h"
 
-/* --- Mutex global --- */
+// Mutex Id-sockfd-tid
 pthread_mutex_t mutex_voitures = PTHREAD_MUTEX_INITIALIZER;
 
-/* --- Tableau global de pointeurs et compteur --- */
 VoitureConnection* voitures_list[MAX_VOITURES];
 int nb_voitures = 0;
 
-/* === Fonctions utilitaires === */
 
-/* --- Récupère un pointeur vers la structure VoitureConnection par son ID --- */
+// Récupère un pointeur vers la structure VoitureConnection par son ID
 VoitureConnection* get_voiture_by_id(int id_voiture) {
     VoitureConnection* v = NULL;
     pthread_mutex_lock(&mutex_voitures);
@@ -39,7 +31,7 @@ VoitureConnection* get_voiture_by_id(int id_voiture) {
     return v;
 }
 
-/* --- Récupère un pointeur vers la structure VoitureConnection par sa socket --- */
+// Récupère un pointeur vers la structure VoitureConnection par sa socket
 VoitureConnection* get_voiture_by_sockfd(int sockfd) {
     VoitureConnection* v = NULL;
     pthread_mutex_lock(&mutex_voitures);
@@ -68,7 +60,7 @@ int recvDemande(int sockfd, Demande* dem) {
 int recvFin(int sockfd, char* buffer, size_t max_size) {
     int n = recvBuffer(sockfd, buffer, max_size);
     if (n <= 0) return n;
-    buffer[max_size - 1] = '\0'; // sécurité
+    buffer[max_size - 1] = '\0';
     return n;
 }
 
@@ -87,7 +79,7 @@ int recvMessage(int sockfd, MessageType* type, void* message) {
 void* receive_thread(void* arg) {
     VoitureConnection* v = (VoitureConnection*) arg;
     MessageType type;
-    char buffer[2048]; // pour MESSAGE_FIN si besoin
+    char buffer[2048];
 
     printf("[Serveur] Thread de la voiture %d démarré.\n", v->id_voiture);
 
@@ -127,7 +119,7 @@ fin_connexion:
     return NULL;
 }
 
-// Déconnecte une voiture (ferme socket, enlève de la liste, libère mémoire)
+// Déconnecte une voiture
 void deconnecter_voiture(VoitureConnection* v) {
     if (!v) return;
 

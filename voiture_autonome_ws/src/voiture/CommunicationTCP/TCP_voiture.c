@@ -30,6 +30,28 @@ ConnexionTCP connexion_tcp = {
     .stop_client = false
 };
 
+// Déconnecte Proprement
+void deconnecter_controleur() {
+    pthread_mutex_lock(&connexion_tcp.mutex);
+    connexion_tcp.stop_client = true;
+    connexion_tcp.voiture_connectee = false;
+
+    if (connexion_tcp.sockfd >= 0) {
+        close(connexion_tcp.sockfd);
+        connexion_tcp.sockfd = -1;
+    }
+    pthread_mutex_unlock(&connexion_tcp.mutex);
+
+    // Attendre le thread de réception interne
+    if (connexion_tcp.tid_rcv != 0) {
+        pthread_cancel(connexion_tcp.tid_rcv);
+        pthread_join(connexion_tcp.tid_rcv, NULL);
+        connexion_tcp.tid_rcv = 0;
+    }
+
+    INFO(TAG, "Voiture déconnecté proprement du contrôleur");
+}
+
 void* receive_thread() {
     MessageType type;
     char buffer[sizeof(Itineraire) + 2048];
@@ -46,8 +68,6 @@ void* receive_thread() {
 
         if (nbytes <= 0) {
             printf("[Client] Connexion fermée ou erreur.\n");
-
-            // Notifier le thread principal
             pthread_mutex_lock(&connexion_tcp.mutex);
             connexion_tcp.voiture_connectee = false;
             pthread_mutex_unlock(&connexion_tcp.mutex);
@@ -55,7 +75,6 @@ void* receive_thread() {
             break;
         }
 
-        // Traitement des messages (inchangé)
         switch (type) {
             case MESSAGE_CONSIGNE: {
                 Consigne* c = (Consigne*) buffer;
@@ -81,6 +100,7 @@ void* receive_thread() {
 
             case MESSAGE_FIN: {
                 printf("[Client] Reçu MESSAGE_FIN, fermeture.\n");
+                deconnecter_controleur();
                 pthread_mutex_lock(&connexion_tcp.mutex);
                 connexion_tcp.voiture_connectee = false;
                 pthread_mutex_unlock(&connexion_tcp.mutex);
@@ -102,7 +122,7 @@ static int recvBuffer(void* buffer, size_t size) {
     char* ptr = (char*) buffer;
     while (total < size) {
         ssize_t n = recv(connexion_tcp.sockfd, ptr + total, size - total, 0);
-        if (n <= 0) return n; // erreur ou fermeture
+        if (n <= 0) return n;
         total += n;
     }
     return total;

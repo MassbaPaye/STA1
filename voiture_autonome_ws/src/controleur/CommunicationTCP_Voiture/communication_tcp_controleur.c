@@ -13,15 +13,6 @@
 #define TAG "TCP_controleur"
 #define CHECK_ERROR(val1, val2, msg) if (val1==val2) { perror(msg); exit(EXIT_FAILURE); }
 
-void* test_thread(void* arg) {
-    (void)arg;
-    while (1) {
-        afficher_voitures_connectees();
-        sleep(10);
-    }
-    return NULL;
-}
-
 static int sendBuffer(int Id, const void* buffer, size_t size) {
     VoitureConnection* v = get_voiture_by_id(Id);
     if (!v) return -1;
@@ -51,18 +42,12 @@ int sendMessage(int Id, MessageType type, const void* message) {
     int b;
     switch (type) {
         case MESSAGE_CONSIGNE:    return sendConsigne(Id, (Consigne*)message);
-        case MESSAGE_ITINERAIRE: 
-            b = sendItineraire(Id, (Itineraire*)message);
-            if (b <0 ) {
-                ERR(TAG, "1");
-                return b;
-            }
+        case MESSAGE_ITINERAIRE:  return sendItineraire(Id, (Itineraire*)message);
         case MESSAGE_FIN:         return sendFin(Id);
         default:                  return -1;
     }
 
 }
-
 
 // Affiche la liste des voitures connectées
 void afficher_voitures_connectees() {
@@ -81,7 +66,7 @@ void afficher_voitures_connectees() {
     pthread_mutex_unlock(&mutex_voitures);
 }
 
-/* === Boucle principale de communication === */
+// Boucle principale de communication
 void* initialisation_communication_controleur(void* arg) {
     (void)arg;
     int se;
@@ -102,14 +87,17 @@ void* initialisation_communication_controleur(void* arg) {
         CHECK_ERROR(client_sd, -1, "Erreur accept");
 
         VoitureConnection* v = malloc(sizeof(VoitureConnection));
-        if (!v) { close(client_sd); continue; }
+        if (!v) { 
+            close(client_sd); 
+            continue; 
+        }
 
         v->sockfd = client_sd;
         v->id_voiture = nb_voitures + 1;
 
         pthread_mutex_lock(&mutex_voitures);
         if (nb_voitures < MAX_VOITURES) {
-            voitures_list[nb_voitures++] = v;  // stocker le pointeur directement
+            voitures_list[nb_voitures++] = v;  // stocker le pointeur
         } else {
             printf("[Serveur] Nombre max de voitures atteint.\n");
             close(client_sd);
@@ -117,24 +105,6 @@ void* initialisation_communication_controleur(void* arg) {
             continue;
         }
 
-        pthread_mutex_unlock(&mutex_voitures);
-        /*
-        printf("1\n");
-        Itineraire iti;
-        iti.nb_points = 1;
-        iti.points[0].x = 0;
-        iti.points[0].y = 1;
-        iti.points[0].z = 2;
-        set_voiture_itineraire(v->id_voiture, &iti)
-        get_voiture_itineraire(v->id_voiture, &iti);
-        
-        printf("2\n");
-        Consigne cons;
-        sendMessage(v->id_voiture, MESSAGE_CONSIGNE, &cons);
-        printf("4\n");
-        sendMessage(v->id_voiture, MESSAGE_ITINERAIRE, &iti);
-        printf("5\n");
-        */
         pthread_mutex_unlock(&mutex_voitures);
         pthread_create(&v->tid, NULL, receive_thread, v);
 

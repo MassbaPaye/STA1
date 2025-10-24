@@ -30,4 +30,6 @@ int recvItineraire( Itineraire* iti);
 int recvFin(char* buffer, size_t max_size);
 int recvMessage(MessageType* type, void* message);
 
+void deconnecter_controleur();
+
 #endif
