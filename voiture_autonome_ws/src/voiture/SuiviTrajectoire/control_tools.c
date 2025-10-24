@@ -5,18 +5,19 @@
 
 #define TAG "control-tools"
 
+
 Point to_absolute(Point pr, PositionVoiture pv) {
     Point pa;
-    pa.x = pv.x + cos(pv.theta) * pr.x - sin(pv.theta) * pr.y;
-    pa.y = pv.y + sin(pv.theta) * pr.x + cos(pv.theta) * pr.y;
+    pa.x = pv.x + cosf(pv.theta) * pr.x - sinf(pv.theta) * pr.y;
+    pa.y = pv.y + sinf(pv.theta) * pr.x + cosf(pv.theta) * pr.y;
     pa.theta = pv.theta + pr.theta;
     return pa;
 }
 
 Point to_relative(Point pa, PositionVoiture pv) {
     Point pr;
-    pr.x =   cos(pv.theta) * (pa.x - pv.x) + sin(pv.theta) * (pa.y - pv.y);
-    pr.y = - sin(pv.theta) * (pa.x - pv.x) + cos(pv.theta) * (pa.y - pv.y);
+    pr.x =   cosf(pv.theta) * (pa.x - pv.x) + sinf(pv.theta) * (pa.y - pv.y);
+    pr.y = - sinf(pv.theta) * (pa.x - pv.x) + cosf(pv.theta) * (pa.y - pv.y);
     pr.theta = pa.theta - pv.theta;
     return pr;
 }
@@ -34,8 +35,8 @@ Polynome compute_relative_polynome(Point pr) {
     
     p.a0 = 0.0;
     p.a1 = 0.0;
-    p.a2 = 3*y1/(x1*x1) - tan(theta1)/x1;
-    p.a3 = tan(theta1)/(x1*x1) - 2*y1/(x1*x1*x1);
+    p.a2 = 3*y1/(x1*x1) - tanf(theta1)/x1;
+    p.a3 = tanf(theta1)/(x1*x1) - 2*y1/(x1*x1*x1);
     return p;
 }
 
@@ -48,7 +49,7 @@ Point eval_polynome_relative(Polynome poly, float x) {
     p.x = x;
     p.y = poly.a0 + poly.a1*x + poly.a2*x*x + poly.a3*x*x*x;
     p.z = 0;
-    p.theta = atan(poly.a1 + 2*poly.a2*x + 3*poly.a3*x*x);
+    p.theta = atanf(poly.a1 + 2*poly.a2*x + 3*poly.a3*x*x);
     return p;
 }
 
@@ -76,3 +77,9 @@ int find_closest_point(PositionVoiture pv, Trajectoire traj) {
     }
     return closest_point_id;
 }
+
+is_point_overtaken(PositionVoiture voiture, Point p) {
+    float scalar_prod = (voiture.x - p.x) * cosf(p.theta) + (voiture.y - p.y) * sinf(p.theta);
+    return scalar_prod >= 0;
+}
+

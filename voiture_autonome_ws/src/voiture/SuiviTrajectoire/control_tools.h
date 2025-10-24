@@ -11,5 +11,14 @@ typedef struct {
 } Polynome;
 
 
+Polynome compute_relative_polynome(Point pr);
+Point eval_polynome_relative(Polynome poly, float x);
+Point eval_polynome_absolute(Polynome poly, float x, PositionVoiture pv);
 
-Polynome compute_polynome(Point p1, Point p2);
+int find_closest_point(PositionVoiture pv, Trajectoire traj);
+
+is_point_overtaken(PositionVoiture voiture, Point p);
+
+Point compute_projection_using_l1(PositionVoiture voiture, Point p1_abs, Polynome poly);
+
+void compute_errors(PositionVoiture voiture, Point p_proj_abs);

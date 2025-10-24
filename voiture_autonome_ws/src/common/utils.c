@@ -85,5 +85,5 @@ void my_sleep(double t_s)
 }
 
 float distance_from_car(PositionVoiture pv, Point p) {
-    return sqrt((pv.x-p.x)*(pv.x-p.x) - (pv.y-p.y)*(pv.y-p.y));
+    return sqrtf((pv.x-p.x)*(pv.x-p.x) - (pv.y-p.y)*(pv.y-p.y));
 }

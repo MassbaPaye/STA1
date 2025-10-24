@@ -81,8 +81,10 @@ void stop_communication_serie() {
     // Ajouter un arret propre de tout
 }
 
-void envoyer_consigne_moteur(int consigneD, int consigneG) {
+void set_motor_speed(float v_left, float v_right) {
     if (fd_serial < 0) return;
+    int consigneG = (int) v_left;
+    int consigneD = (int) v_right;
 
     char buffer[64];
     int len = snprintf(buffer, sizeof(buffer),

@@ -35,6 +35,8 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    
+
     // Exemple : afficher la taille de la queue
     INFO(TAG, "→ Taille initiale de la queue de demandes : %d", size_demande_queue());
 
