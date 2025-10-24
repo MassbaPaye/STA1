@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
     stop_communication_serie();
 #endif
     stop_localisation();
-    deconnecter_controleur();
+    //deconnecter_controleur();
     return 0;
 }
 

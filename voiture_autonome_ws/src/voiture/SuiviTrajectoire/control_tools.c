@@ -2,6 +2,7 @@
 #include "messages.h"
 #include "math.h"
 #include "utils.h"
+#include "logger.h"
 
 #define TAG "control-tools"
 
@@ -78,7 +79,7 @@ int find_closest_point(PositionVoiture pv, Trajectoire traj) {
     return closest_point_id;
 }
 
-is_point_overtaken(PositionVoiture voiture, Point p) {
+int is_point_overtaken(PositionVoiture voiture, Point p) {
     float scalar_prod = (voiture.x - p.x) * cosf(p.theta) + (voiture.y - p.y) * sinf(p.theta);
     return scalar_prod >= 0;
 }

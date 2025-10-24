@@ -17,7 +17,7 @@ Point eval_polynome_absolute(Polynome poly, float x, PositionVoiture pv);
 
 int find_closest_point(PositionVoiture pv, Trajectoire traj);
 
-is_point_overtaken(PositionVoiture voiture, Point p);
+int is_point_overtaken(PositionVoiture voiture, Point p);
 
 Point compute_projection_using_l1(PositionVoiture voiture, Point p1_abs, Polynome poly);
 

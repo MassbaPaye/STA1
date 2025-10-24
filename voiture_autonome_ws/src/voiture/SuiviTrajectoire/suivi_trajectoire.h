@@ -6,10 +6,6 @@
 
 
 
-// ====================== CONSTANTES ======================
-#define K0 0.05f
-#define L1 40.0f
-
 // ====================== INTERFACE PUBLIQUE ======================
 void* lancer_suivi_trajectoire(void* arg);
 
@@ -17,6 +13,7 @@ void* lancer_suivi_trajectoire(void* arg);
 int get_trajectoire(Trajectoire* t);
 int get_position(PositionVoiture* p);
 void set_motor_speed(float v_left, float v_right);
+
 
 #endif
 

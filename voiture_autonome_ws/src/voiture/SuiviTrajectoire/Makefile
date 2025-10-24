@@ -10,7 +10,7 @@ CC := gcc
 # Partie à modifier 
 # ==============================
 ARGS := $(CFLAGS) $(INCLUDES)     # Possibilité d'ajouter des flags (-Wall -O2 -lm -pthread par défaut)
-SRC := main_suivi_traj.c      # A modifier lorsqu'on ajoute des fichiers de code
+SRC := control_tools.c suivi_trajectoire.c      # A modifier lorsqu'on ajoute des fichiers de code
 # ==============================
 
 # Création de la liste des fichiers objets à créer (.o)

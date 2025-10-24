@@ -81,7 +81,7 @@ void stop_communication_serie() {
     // Ajouter un arret propre de tout
 }
 
-void set_motor_speed(float v_left, float v_right) {
+void send_motor_speed(float v_left, float v_right) {
     if (fd_serial < 0) return;
     int consigneG = (int) v_left;
     int consigneD = (int) v_right;

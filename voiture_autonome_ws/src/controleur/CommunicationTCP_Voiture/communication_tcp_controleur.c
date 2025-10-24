@@ -39,7 +39,6 @@ int sendMessage(int Id, MessageType type, const void* message) {
         ERR(TAG, "erreur a l'envoie du type");
         return a;
     }
-    int b;
     switch (type) {
         case MESSAGE_CONSIGNE:    return sendConsigne(Id, (Consigne*)message);
         case MESSAGE_ITINERAIRE:  return sendItineraire(Id, (Itineraire*)message);
