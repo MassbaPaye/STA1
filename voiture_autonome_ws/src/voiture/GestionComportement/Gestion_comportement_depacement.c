@@ -11,13 +11,8 @@
 #include"utils.h"
 #include"config.h"
 #include"logger.h"
+#include"voiture_evitement.h"
 #include"voiture_globals.h"
-
-#define LARGEUR_DES_VOIS   360    // mm
-#define LARGEUR_VOITURE    140    // mm
-#define LONGUEUR_VOITURE   240    // mm
-#define SECURITY_MARGE      50    // mm
-#define DISTANCE_STOP      100    // mm
 
 #define Z_seuil 0.1718
 
@@ -44,19 +39,6 @@ Point p_moyen_obj(const DonneesDetection* det, int j){
     p_moyen.y = (det->obstacle[j].pointd.y + det->obstacle[j].pointg.y) / 2.0f;
     p_moyen.z = (det->obstacle[j].pointd.z + det->obstacle[j].pointg.z) / 2.0f;
     return p_moyen;
-}
-
-Point convertir_point_local_vers_global(const PositionVoiture* pos, const Point* local) {
-    Point global;
-
-    double cos_t = cos(pos->theta);
-    double sin_t = sin(pos->theta);
-
-    global.x = pos->x + local->x * cos_t - local->y * sin_t;
-    global.y = pos->y + local->x * sin_t + local->y * cos_t;
-    global.z = pos->z + local->z;
-
-    return global;
 }
 
 int generate_trajectoire() {
@@ -137,46 +119,14 @@ int generate_trajectoire() {
     for (int i = start; i < iti.nb_points && traj.nb_points < MAX_POINTS_TRAJECTOIRE; i++) {
         traj.points[traj.nb_points++] = iti.points[i];
         for(int j=0; j<Obj_detecte.count; j++){
-            Point p_obj = p_moyen_obj(&Obj_detecte, j);
-            float z_here = p_obj.z;
             if(i == point_arret[j]){
+                Point p_obj = p_moyen_obj(&Obj_detecte, j);
+                float z_here = p_obj.z;
                 switch (Obj_detecte.obstacle[j].type){
-                    case OBSTACLE_VOITURE: {
-                        float taille_obj = fabsf(Obj_detecte.obstacle[j].pointd.y - Obj_detecte.obstacle[j].pointg.y);
-                        float max_taille_obj = LARGEUR_DES_VOIS - LARGEUR_VOITURE - SECURITY_MARGE;
-                        float dist_marge = Obj_detecte.marquage_sol.ligne_droite[0].y - Obj_detecte.obstacle[j].pointd.y;
-                        
-                        if(iti.points[i].depacement == 0 || taille_obj>max_taille_obj || taille_obj+dist_marge>max_taille_obj ||
-                        Obj_detecte.obstacle[j].pointd.x < DISTANCE_STOP || Obj_detecte.obstacle[j].pointg.x < DISTANCE_STOP){
-
-                            i = MAX_POINTS_TRAJECTOIRE;
-                            traj.arreter_fin = 1;
-                        }else{
-
-                            if(Obj_detecte.obstacle[j].pointd.y < Obj_detecte.marquage_sol.ligne_gauche[0].y){
-                                break;
-                            }
-                            if(Obj_detecte.obstacle[j].pointd.y > Obj_detecte.marquage_sol.ligne_droite[0].y){
-                                traj.points[0].x = pos.x;
-                                traj.points[0].y = pos.y;
-                                traj.points[0].z = pos.z;
-
-                                Point Obj_abs = convertir_point_local_vers_global(&pos, &Obj_detecte.obstacle[j].pointd);
-                                traj.points[1].x = Obj_abs.x + 300;
-                                traj.points[1].y = pos.y + 180;
-                                traj.points[1].z = pos.z;
-                                i = MAX_POINTS_TRAJECTOIRE;
-                            }
-                            if(Obj_detecte.obstacle[j].pointg.y >= Obj_detecte.marquage_sol.ligne_gauche[0].y + 1){
-                                Point Obj_abs = convertir_point_local_vers_global(&pos, &p_obj);
-                                traj.vitesse = v_current/2;
-                                traj.points[traj.nb_points] = Obj_abs;
-                                traj.points[traj.nb_points].y = pos.y - 180;
-                                i = MAX_POINTS_TRAJECTOIRE;
-                            }
-                        }
+                    case OBSTACLE_VOITURE:
+                        voiture_evitement_main();
+                        return 0;
                         break;
-                    }
                     case PANNEAU_LIMITATION_30:
                         if(z_here < Z_seuil) break;
                         traj.vitesse_max = 30;

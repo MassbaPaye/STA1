@@ -111,31 +111,6 @@ static void convertir_obstacle_local_vers_absolu(const Obstacle* obs_local,
 }
 
 // ============================================================================
-// Fonction : largeur_voie_et_vecteur_lateral
-// Rôle     : Retourner la largeur de voie au voisinage (i=0) et le vecteur unité
-//            gauche->droite (vx,vy) basé sur MarquageSol. Renvoie false si indisponible.
-// ============================================================================
-static bool largeur_voie_et_vecteur_lateral(const MarquageSol* ms,
-                                            float* largeur,
-                                            float* vx_lat, float* vy_lat)
-{
-    if (ms->nb_points_gauche <= 0 || ms->nb_points_droite <= 0) return false;
-
-    Point g = ms->ligne_gauche[0];
-    Point d = ms->ligne_droite[0];
-
-    float vx = (float)(d.x - g.x);
-    float vy = (float)(d.y - g.y);
-    float w  = hypot2f(vx, vy);
-    if (w < 1e-6f) return false;
-
-    *largeur = w;
-    *vx_lat  = vx / w;  // unité gauche->droite
-    *vy_lat  = vy / w;
-    return true;
-}
-
-// ============================================================================
 // Fonction : choisir_cote_contournement
 // Rôle     : Choisir le côté à passer (gauche = -1, droite = +1) selon la marge
 //            disponible vis-à-vis des bords de voie.
