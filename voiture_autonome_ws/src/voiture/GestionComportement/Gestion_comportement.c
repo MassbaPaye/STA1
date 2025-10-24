@@ -47,7 +47,7 @@ int generate_trajectoire() {
         return -1;
     }
 
-    if (iti.nb_points <= 0 || iti.points == NULL) {
+    if (iti.nb_points <= 0) {
         DBG(TAG, "L'itineraire est vide");
         return -1;
     }
@@ -182,14 +182,14 @@ static volatile bool continuer_execution = true;
 void* lancer_comportement(void* arg) {
     reception_itineraire();
 
-    printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
+//    printf("[%s] Démarrage du système de génération de trajectoire...\n", TAG);
     
     while (continuer_execution) {
         Itineraire iti;
 
         int ret = get_itineraire(&iti);
 
-        if (ret != 0 || iti.nb_points <= 0 || iti.points == NULL) {
+        if (ret != 0 || iti.nb_points <= 0) {
             printf("[%s] Aucun itinéraire disponible. Nouvelle tentative dans 0.5s...\n", TAG);
             usleep(500000); // attend 500 ms avant de réessayer
             continue;

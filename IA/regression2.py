@@ -43,14 +43,15 @@ print(f"\nErreur max sur les points donnés : {max_err:.6e}")
 for xi, yi, yfi in zip(x, y, y_fit):
     print(f"x={xi:8.3f}  y={yi:8.3f}  y_fit={yfi:10.6f}  err={yfi-yi: .3e}")
 
-# Tracé
-x_pred = np.linspace(min(x), max(x), 400)
+# Tracé entre x=0 et x=3000
+x_pred = np.linspace(0, 1400, 300)
 y_pred = poly(x_pred)
 plt.scatter(x, y, label='Points donnés', s=40)
 plt.plot(x_pred, y_pred, label='Polynôme degré 6', linewidth=2)
 plt.xlabel('x')
 plt.ylabel('y')
 plt.title('Interpolation / Régression polynomiale (degré 6)')
+plt.xlim(0, 1400)
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()

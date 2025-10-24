@@ -45,6 +45,7 @@
 #define MAX_POINTS_MARQUAGE 64
 #define MAX_PANNEAUX_SIMULTANES 5
 #define MAX_OBSTACLES_SIMULTANES 5
+#define MAX_ITI 1000
 
 // === Parametre géométriques de la voiture ===
 #define RAYON_ROUE 30.0 // mm
