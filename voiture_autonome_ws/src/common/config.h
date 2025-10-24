@@ -24,8 +24,8 @@
 #define DEFAULT_MEGAPI_PORT      "COM3"
 #define DEFAULT_MARVELMIND_PORT  "COM4"
 #else
-#define DEFAULT_MEGAPI_PORT      "/dev/ttyACM0"
-#define DEFAULT_MARVELMIND_PORT  "/dev/ttyUSB0"
+#define DEFAULT_MEGAPI_PORT      "/dev/ttyAMA0"
+#define DEFAULT_MARVELMIND_PORT  "/dev/ttyACM0"
 #endif
 #define MEGAPI_BAUDRATE          115200
 
@@ -35,6 +35,10 @@
 #define MAX_VITESSE 100 // [mm/s]
 #define MAX_STRUCTURE 3
 
+// === Paramètres du controle ===
+#define L1 30.0f // mm
+#define K0 0.5f // 
+#define MAX_TRAJ_OFFSET 80 // mm
 
 // === Paramètres Types/Messages ===
 #define MAX_POINTS_TRAJECTOIRE 5

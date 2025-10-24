@@ -6,16 +6,6 @@
 
 
 
-typedef struct {
-    float x;     // mm
-    float y;     // mm
-    float z;     // mm
-    float theta; // degrés
-    float vx;
-    float vy;
-    float vz;
-} PositionVoiture;
-
 // ====================== CONSTANTES ======================
 #define K0 0.05f
 #define L1 40.0f

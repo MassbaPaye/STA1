@@ -110,6 +110,7 @@ void* initialisation_communication_controleur(void* arg) {
 
         printf("[Serveur] Nouvelle voiture connectée, id=%d\n", v->id_voiture);
     }
+    
 
     close(se);
     return NULL;
