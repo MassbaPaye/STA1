@@ -15,6 +15,7 @@
 #include "simulation_loc.h"
 #include "UDP_voiture.h"
 #include "Gestion_comportement.h"
+#include "suivi_trajectoire.h"
 
 #define TAG "main"
 
@@ -23,6 +24,8 @@ pthread_t thread_communication_tcp;
 pthread_t thread_communication_udp;
 pthread_t thread_communication_serie;
 pthread_t thread_gestion_comportement;
+pthread_t thread_suivi_trajectoire;
+
 #ifdef SIMULATION
 pthread_t thread_simulation;
 #endif
@@ -110,6 +113,12 @@ int main(int argc, char *argv[]) {
     
     // Lancement du thread comportement
     if (pthread_create(&thread_gestion_comportement, NULL, lancer_comportement, NULL) != 0) {
+        perror("Erreur pthread_create lancer comportement");
+        return EXIT_FAILURE;
+    }
+
+    // Lancement du thread suivi traj
+    if (pthread_create(&thread_suivi_trajectoire, NULL, lancer_suivi_trajectoire, NULL) != 0) {
         perror("Erreur pthread_create lancer comportement");
         return EXIT_FAILURE;
     }
